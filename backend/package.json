@@ -26,6 +26,7 @@
     "helmet": "^8.0.0",
     "jsonwebtoken": "^9.0.2",
     "pdfkit": "^0.20.2",
+    "prisma": "^5.22.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
@@ -37,7 +38,6 @@
     "@types/node": "^22.13.1",
     "@types/pdfkit": "^0.17.6",
     "@types/supertest": "^6.0.2",
-    "prisma": "^5.22.0",
     "rimraf": "^6.0.1",
     "supertest": "^7.0.0",
     "tsx": "^4.19.2",
