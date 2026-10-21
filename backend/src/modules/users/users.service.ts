@@ -52,6 +52,7 @@ export async function listUsers(companyId: string, query: ListUsersQuery, scopeU
       lastLoginAt: u.lastLoginAt,
       createdAt: u.createdAt,
       managerId: u.managerId ?? null,
+      isSuperAdmin: !!u.isSuperAdmin,
       manager: devManager(u.managerId),
       roles: devStore.roles
         .filter((r) => u.roleIds.includes(r.id))
@@ -97,6 +98,7 @@ export async function listUsers(companyId: string, query: ListUsersQuery, scopeU
         createdAt: true,
         updatedAt: true,
         managerId: true,
+        isSuperAdmin: true,
         manager: { select: MANAGER_SELECT },
         userRoles: {
           include: {
@@ -120,6 +122,7 @@ export async function listUsers(companyId: string, query: ListUsersQuery, scopeU
     lastLoginAt: u.lastLoginAt,
     createdAt: u.createdAt,
     managerId: u.managerId,
+    isSuperAdmin: u.isSuperAdmin,
     manager: u.manager,
     roles: u.userRoles.map((ur) => ur.role),
   }));
@@ -157,6 +160,7 @@ export async function getUserById(companyId: string, userId: string, scopeUserId
       createdAt: user.createdAt,
       updatedAt: user.updatedAt,
       managerId: user.managerId ?? null,
+      isSuperAdmin: !!user.isSuperAdmin,
       manager: devManager(user.managerId),
       roles: roles.map((r) => ({ id: r.id, name: r.name, description: r.description })),
       permissions: Array.from(permSet),
@@ -174,6 +178,7 @@ export async function getUserById(companyId: string, userId: string, scopeUserId
       createdAt: true,
       updatedAt: true,
       managerId: true,
+      isSuperAdmin: true,
       manager: { select: MANAGER_SELECT },
       userRoles: {
         include: {

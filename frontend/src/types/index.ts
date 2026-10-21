@@ -28,6 +28,10 @@ export interface User {
   createdAt?: string;
   managerId?: string | null;
   manager?: { id: string; name: string } | null;
+  /** Shown as a badge. */
+  isSuperAdmin?: boolean;
+  /** Whether this person may manage access (Super Admin, or an administrator when no Super Admin exists). */
+  canManageAccess?: boolean;
   companyId: string;
   company?: {
     id: string;

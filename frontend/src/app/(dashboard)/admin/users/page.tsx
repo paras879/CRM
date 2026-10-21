@@ -20,6 +20,7 @@ import {
   UserX,
   UserCheck,
   Trash2,
+  Lock,
   Shield,
   RefreshCw,
   KeyRound,
@@ -28,6 +29,7 @@ import {
 
 export default function UsersAdminPage() {
   const { hasPermission, user: currentUser } = useAuth();
+  const canManageAccess = !!currentUser?.canManageAccess;
   const [resetLink, setResetLink] = useState<{ url: string; name: string; expiresAt: string } | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -231,6 +233,13 @@ export default function UsersAdminPage() {
     }
   };
 
+  const hasAdministratorRole = (u: User) =>
+    Array.isArray(u.roles) && u.roles.some((r: any) => (typeof r === 'string' ? r : r.name) === 'Administrator');
+  const assignableRoles = roles.filter((r) => canManageAccess || r.name !== 'Administrator');
+  // Nobody changes their own role, and only a Super Admin changes an administrator's.
+  const roleLocked =
+    !!selectedUser && (selectedUser.id === currentUser?.id || (hasAdministratorRole(selectedUser) && !canManageAccess));
+
   const renderManagerSelect = (excludeUserId?: string) => (
     <div>
       <label className="text-sm font-medium block mb-1">Reports To</label>
@@ -358,6 +367,11 @@ export default function UsersAdminPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex flex-wrap gap-1">
+                        {u.isSuperAdmin && (
+                          <Badge variant="info" className="text-[10px]">
+                            Super Admin
+                          </Badge>
+                        )}
                         {Array.isArray(u.roles) && u.roles.length > 0 ? (
                           u.roles.map((r: any) => (
                             <Badge key={typeof r === 'string' ? r : r.id} variant="secondary" className="text-[10px]">
@@ -393,6 +407,15 @@ export default function UsersAdminPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
+                        {u.isSuperAdmin && !canManageAccess ? (
+                          <span
+                            className="inline-flex items-center gap-1 text-[11px] text-muted-foreground px-2"
+                            title="Only a Super Admin can change this account"
+                          >
+                            <Lock className="h-3 w-3" /> Protected
+                          </span>
+                        ) : (
+                          <>
                         {hasPermission('users.update') && (
                           <Button
                             variant="ghost"
@@ -446,6 +469,8 @@ export default function UsersAdminPage() {
                           >
                             <Trash2 className="h-3.5 w-3.5" />
                           </Button>
+                        )}
+                          </>
                         )}
                       </div>
                     </TableCell>
@@ -511,7 +536,7 @@ export default function UsersAdminPage() {
           <div>
             <label className="text-sm font-medium block mb-2" id="role-label-create">Role</label>
             <div role="radiogroup" aria-label="Role" className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
-              {roles.map((r) => {
+              {assignableRoles.map((r) => {
                 const isSelected = selectedRoleIds.includes(r.id);
                 return (
                   <button
@@ -620,14 +645,22 @@ export default function UsersAdminPage() {
           {renderManagerSelect(selectedUser?.id)}
           <div>
             <label className="text-sm font-medium block mb-2" id="role-label-edit">Role</label>
+            {roleLocked && (
+              <p className="text-xs text-muted-foreground mb-2">
+                {selectedUser?.id === currentUser?.id
+                  ? "You can't change your own role. Ask another administrator."
+                  : 'Only a Super Admin can change an administrator\'s role.'}
+              </p>
+            )}
             <div role="radiogroup" aria-label="Role" className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
-              {roles.map((r) => {
+              {(roleLocked ? roles.filter((r) => selectedRoleIds.includes(r.id)) : assignableRoles).map((r) => {
                 const isSelected = selectedRoleIds.includes(r.id);
                 return (
                   <button
                     key={r.id}
                     type="button"
                     role="radio"
+                    disabled={roleLocked}
                     aria-checked={isSelected}
                     onClick={() => toggleRoleSelection(r.id)}
                     className={`flex items-center gap-2 p-2 rounded-md border text-left text-xs transition-colors ${

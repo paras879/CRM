@@ -10,6 +10,7 @@ import {
 } from '../../utils/tokens.js';
 import { AppError } from '../../utils/app-error.js';
 import { recordAuditLog } from '../audit/audit.service.js';
+import { canManageAccess } from '../users/super-admin.js';
 import { LoginInput, ResetPasswordInput } from './auth.schema.js';
 import * as passwordReset from './password-reset.service.js';
 
@@ -366,6 +367,8 @@ export async function getCurrentUserProfile(userId: string) {
       },
       roles: roleNames,
       permissions: Array.from(permSet),
+      isSuperAdmin: !!user.isSuperAdmin,
+      canManageAccess: await canManageAccess({ companyId: user.companyId, roles: roleNames, isSuperAdmin: !!user.isSuperAdmin }),
     };
   }
 
@@ -419,6 +422,8 @@ export async function getCurrentUserProfile(userId: string) {
     company: user.company,
     roles,
     permissions: Array.from(permissionSet),
+    isSuperAdmin: user.isSuperAdmin,
+    canManageAccess: await canManageAccess({ companyId: user.companyId, roles, isSuperAdmin: user.isSuperAdmin }),
   };
 }
 

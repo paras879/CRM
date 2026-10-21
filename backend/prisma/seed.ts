@@ -94,11 +94,13 @@ async function main() {
   const accounts = [
     {
       label: 'Super Admin',
+      isSuperAdmin: true,
       email: required('INITIAL_SUPER_ADMIN_EMAIL', 'superadmin@businesscrm.local').toLowerCase(),
       password: required('INITIAL_SUPER_ADMIN_PASSWORD', 'Admin@Secure123!'),
     },
     {
       label: 'Admin',
+      isSuperAdmin: false,
       email: required('INITIAL_ADMIN_EMAIL', 'admin@businesscrm.local').toLowerCase(),
       password: required('INITIAL_ADMIN_PASSWORD', 'Admin@Secure123!'),
     },
@@ -273,13 +275,14 @@ async function main() {
     const user = await prisma.user.upsert({
       where: { companyId_email: { companyId: company.id, email: account.email } },
       // Re-running the seed never resets a password that someone has already changed.
-      update: { name: account.label, status: UserStatus.ACTIVE },
+      update: { name: account.label, status: UserStatus.ACTIVE, ...(account.isSuperAdmin ? { isSuperAdmin: true } : {}) },
       create: {
         companyId: company.id,
         name: account.label,
         email: account.email,
         passwordHash,
         status: UserStatus.ACTIVE,
+        isSuperAdmin: account.isSuperAdmin,
       },
     });
 

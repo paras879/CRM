@@ -38,8 +38,10 @@ function errorMessage(err: unknown, fallback: string) {
 }
 
 export default function SettingsPage() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user: currentUser } = useAuth();
   const canEdit = hasPermission('company.update');
+  // The base currency drives every invoice and estimate, so only a Super Admin changes currencies.
+  const canEditCurrency = canEdit && !!currentUser?.canManageAccess;
 
   const [error, setError] = useState<string | null>(null);
 
@@ -268,7 +270,7 @@ export default function SettingsPage() {
                 <TableHead>Code</TableHead>
                 <TableHead>Symbol</TableHead>
                 <TableHead>Default</TableHead>
-                {canEdit && <TableHead className="text-right">Actions</TableHead>}
+                {canEditCurrency && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -297,7 +299,7 @@ export default function SettingsPage() {
                       )}
                     </TableCell>
                     <TableCell>{c.isDefault && <Badge>Default</Badge>}</TableCell>
-                    {canEdit && (
+                    {canEditCurrency && (
                       <TableCell className="text-right space-x-1 whitespace-nowrap">
                         {editingCurrencyId === c.id ? (
                           <>
@@ -375,7 +377,11 @@ export default function SettingsPage() {
             </TableBody>
           </Table>
 
-          {canEdit && (
+          {canEdit && !canEditCurrency && (
+            <p className="text-xs text-muted-foreground">Only a Super Admin can add or change currencies.</p>
+          )}
+
+          {canEditCurrency && (
             <form onSubmit={addCurrency} className="grid gap-3 sm:grid-cols-[8rem_8rem_auto] items-end">
               <Input id="currency-code" label="Code" maxLength={3} placeholder="e.g. INR" value={currencyCode} onChange={(e) => setCurrencyCode(e.target.value)} required />
               <Input id="currency-symbol" label="Symbol" maxLength={8} value={currencySymbol} onChange={(e) => setCurrencySymbol(e.target.value)} required />

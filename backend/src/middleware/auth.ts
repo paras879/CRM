@@ -12,6 +12,8 @@ export interface AuthenticatedUser {
   status: string;
   roles: string[];
   permissions: string[];
+  /** The stored Super Admin flag. Use canManageAccess() to decide what someone may do. */
+  isSuperAdmin: boolean;
 }
 
 declare global {
@@ -64,6 +66,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
         status: user.status,
         roles: roleNames,
         permissions: Array.from(permSet),
+        isSuperAdmin: !!user.isSuperAdmin,
       };
       return next();
     }
@@ -114,6 +117,7 @@ export async function requireAuth(req: Request, _res: Response, next: NextFuncti
       status: user.status,
       roles,
       permissions: Array.from(permissionSet),
+      isSuperAdmin: user.isSuperAdmin,
     };
 
     next();

@@ -120,6 +120,7 @@ export interface DevUser {
   updatedAt: Date;
   roleIds: string[];
   managerId?: string | null;
+  isSuperAdmin?: boolean;
 }
 
 export interface DevContact {
@@ -866,6 +867,7 @@ class DevInMemoryStore {
         companyId: this.company.id,
         name: 'Super Admin',
         email: 'superadmin@businesscrm.local',
+        isSuperAdmin: true,
         passwordHash: adminPasswordHash,
         status: UserStatus.ACTIVE,
         lastLoginAt: null,

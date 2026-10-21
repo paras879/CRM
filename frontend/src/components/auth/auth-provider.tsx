@@ -41,11 +41,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const login = async (email: string, password: string) => {
     setIsLoading(true);
     try {
-      const data = await apiFetch<{ user: User }>('/auth/login', {
+      await apiFetch('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
       });
-      setUser(data.user);
+      // The sign-in response is a short summary; load the full profile (company, Super Admin status, ...).
+      await fetchCurrentUser();
       router.push('/dashboard');
     } finally {
       setIsLoading(false);

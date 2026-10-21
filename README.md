@@ -120,7 +120,18 @@ npm run dev:frontend   # Runs Next.js on http://localhost:3000
 ```
 
 ### Default Development Credentials
-Local development (no database, in-memory store) has two administrator accounts, both with the same password:
+There are two administrator accounts. Both hold the Administrator role and every day-to-day permission. The **Super Admin** can additionally manage access itself, which an ordinary **Admin** cannot:
+
+| Only a Super Admin can | An Admin can still |
+|---|---|
+| Edit, deactivate, delete or reset the password of a Super Admin | Do all the day-to-day work and manage ordinary users |
+| Create an Administrator, or give or remove the Administrator role | Create, edit and delete everyone else |
+| Create, change or delete roles and permissions (Admins can read them) | Change tax rates and the company profile |
+| Add, edit or delete currencies | |
+
+Nobody can change their own role. If a company ever has no active Super Admin, its Administrators regain these abilities so access is never locked. Super Admin status is set by the seed (or directly in the database); there is no screen to grant it.
+
+Local development (no database, in-memory store) has the two accounts below, both with the same password:
 
 | Account | Email | Password |
 |---|---|---|

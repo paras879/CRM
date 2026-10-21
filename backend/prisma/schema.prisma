@@ -199,6 +199,8 @@ model User {
   passwordHash       String
   status             UserStatus           @default(INVITED)
   lastLoginAt        DateTime?
+  /// Super Admins can also manage access: other Super Admins, the Administrator role, roles and currencies.
+  isSuperAdmin       Boolean              @default(false)
   managerId          String?              @db.Uuid
   manager            User?                @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
   directReports      User[]               @relation("UserManager")

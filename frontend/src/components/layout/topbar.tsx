@@ -141,8 +141,9 @@ export function Topbar({ onMobileMenuToggle, title }: TopbarProps) {
     }
   };
 
-  const primaryRole =
-    Array.isArray(user?.roles) && user.roles.length > 0
+  const primaryRole = user?.isSuperAdmin
+    ? 'Super Admin'
+    : Array.isArray(user?.roles) && user.roles.length > 0
       ? typeof user.roles[0] === 'string'
         ? user.roles[0]
         : (user.roles[0] as any).name
@@ -306,6 +307,11 @@ export function Topbar({ onMobileMenuToggle, title }: TopbarProps) {
                     {user?.email}
                   </p>
                   <div className="mt-1.5 flex flex-wrap gap-1">
+                    {user?.isSuperAdmin && (
+                      <Badge variant="info" className="text-[10px] py-0 px-1.5">
+                        Super Admin
+                      </Badge>
+                    )}
                     {getRoleNames(user).map((role) => (
                       <Badge key={role} variant="secondary" className="text-[10px] py-0 px-1.5">
                         {role}
@@ -328,7 +334,7 @@ export function Topbar({ onMobileMenuToggle, title }: TopbarProps) {
                   <ShieldCheck className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
                   <dt className="text-muted-foreground">Access</dt>
                   <dd className="ml-auto font-medium text-foreground">
-                    {isAdmin ? 'Full access' : `${user?.permissions?.length || 0} permissions`}
+                    {user?.isSuperAdmin ? 'Full access, including roles and admins' : isAdmin ? 'Full access' : `${user?.permissions?.length || 0} permissions`}
                   </dd>
                 </div>
               </dl>

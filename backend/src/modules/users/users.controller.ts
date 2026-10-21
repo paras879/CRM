@@ -3,6 +3,7 @@ import { issuePasswordReset as issueReset } from '../auth/password-reset.service
 import * as usersService from './users.service.js';
 import { getTeamOverview, getTeamUserIds, getUserStats, isTeamScopedManager } from './team.service.js';
 import { notifyAdminsOfUserEvent } from '../notifications/work-notifications.js';
+import { assertCanAssignRoles, assertCanModifyUser } from './super-admin.js';
 
 /** Managers only see people in their own reporting tree; everyone else keeps their normal access. */
 async function userScopeFor(req: Request): Promise<string[] | null> {
@@ -46,6 +47,7 @@ export async function getUser(req: Request, res: Response, next: NextFunction) {
 
 export async function createUser(req: Request, res: Response, next: NextFunction) {
   try {
+    await assertCanAssignRoles(req.user!, req.body.roleIds ?? []);
     const user = await usersService.createUser(
       req.user!.companyId,
       req.user!.id,
@@ -60,7 +62,12 @@ export async function createUser(req: Request, res: Response, next: NextFunction
 
 export async function updateUser(req: Request, res: Response, next: NextFunction) {
   try {
-    const before = req.body.roleIds || req.body.status ? await usersService.getUserById(req.user!.companyId, req.params.userId) : null;
+    const existing = await usersService.getUserById(req.user!.companyId, req.params.userId);
+    await assertCanModifyUser(req.user!, existing);
+    if (Array.isArray(req.body.roleIds)) {
+      await assertCanAssignRoles(req.user!, req.body.roleIds, existing);
+    }
+    const before = req.body.roleIds || req.body.status ? existing : null;
     const user = await usersService.updateUser(
       req.user!.companyId,
       req.user!.id,
@@ -84,6 +91,8 @@ export async function updateUser(req: Request, res: Response, next: NextFunction
 
 export async function issuePasswordReset(req: Request, res: Response, next: NextFunction) {
   try {
+    const target = await usersService.getUserById(req.user!.companyId, req.params.userId);
+    await assertCanModifyUser(req.user!, target);
     const result = await issueReset(req.user!.companyId, req.user!.id, req.params.userId);
     res.status(201).json({ data: result });
     void notifyAdminsOfUserEvent(req.user!.companyId, req.user!.id, 'password_reset', {
@@ -98,6 +107,7 @@ export async function issuePasswordReset(req: Request, res: Response, next: Next
 export async function deleteUser(req: Request, res: Response, next: NextFunction) {
   try {
     const target = await usersService.getUserById(req.user!.companyId, req.params.userId);
+    await assertCanModifyUser(req.user!, target);
     if (req.query.permanent === 'true') {
       const removed = await usersService.deleteUserPermanently(req.user!.companyId, req.user!.id, req.params.userId);
       res.json(removed);

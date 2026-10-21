@@ -24,7 +24,9 @@ import {
 } from 'lucide-react';
 
 export default function RolesAdminPage() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user: currentUser } = useAuth();
+  // Roles and permissions decide who can do what, so changing them is for Super Admins.
+  const canManageRoles = hasPermission('roles.manage') && !!currentUser?.canManageAccess;
   const [roles, setRoles] = useState<Role[]>([]);
   const [permissionsGrouped, setPermissionsGrouped] = useState<Record<string, Permission[]>>({});
   const [isLoading, setIsLoading] = useState(true);
@@ -163,8 +165,13 @@ export default function RolesAdminPage() {
           <p className="text-sm text-muted-foreground mt-1">
             Configure role definitions, assign permissions, and inspect authorization policies
           </p>
+          {hasPermission('roles.manage') && !currentUser?.canManageAccess && (
+            <p className="text-xs text-amber-600 dark:text-amber-400 mt-1">
+              Only a Super Admin can change roles and permissions. You can view them here.
+            </p>
+          )}
         </div>
-        {hasPermission('roles.manage') && (
+        {canManageRoles && (
           <Button
             onClick={() => {
               setRoleName('');
@@ -243,7 +250,7 @@ export default function RolesAdminPage() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1.5">
-                        {hasPermission('roles.manage') && (
+                        {canManageRoles && (
                           <Button
                             variant="ghost"
                             size="sm"
@@ -254,7 +261,7 @@ export default function RolesAdminPage() {
                             <Edit2 className="h-3.5 w-3.5" />
                           </Button>
                         )}
-                        {hasPermission('roles.manage') && !r.isSystem && (
+                        {canManageRoles && !r.isSystem && (
                           <Button
                             variant="ghost"
                             size="sm"

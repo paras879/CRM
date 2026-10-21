@@ -2,6 +2,7 @@ import { Router, Request, Response, NextFunction } from 'express';
 import { requireAuth } from '../../middleware/auth.js';
 import { requirePermission } from '../../middleware/permissions.js';
 import { validate } from '../../middleware/validate.js';
+import { requireSuperAdmin } from '../users/super-admin.js';
 import {
   UpdateCompanySchema,
   CreateTaxRateSchema,
@@ -96,6 +97,7 @@ settingsRouter.get(
 settingsRouter.post(
   '/currencies',
   requirePermission('company.update'),
+  requireSuperAdmin('change currencies'),
   validate({ body: CreateCurrencySchema }),
   handle(async (req) => ({
     status: 201,
@@ -106,6 +108,7 @@ settingsRouter.post(
 settingsRouter.put(
   '/currencies/:id',
   requirePermission('company.update'),
+  requireSuperAdmin('change currencies'),
   validate({ params: IdParamSchema, body: UpdateCurrencySchema }),
   handle(async (req) => ({
     body: { data: await service.updateCurrency(companyId(req), actorId(req), req.params.id, req.body) },
@@ -115,6 +118,7 @@ settingsRouter.put(
 settingsRouter.post(
   '/currencies/:id/default',
   requirePermission('company.update'),
+  requireSuperAdmin('change currencies'),
   validate({ params: IdParamSchema }),
   handle(async (req) => ({
     body: { data: await service.setDefaultCurrency(companyId(req), actorId(req), req.params.id) },
@@ -124,6 +128,7 @@ settingsRouter.post(
 settingsRouter.delete(
   '/currencies/:id',
   requirePermission('company.update'),
+  requireSuperAdmin('change currencies'),
   validate({ params: IdParamSchema }),
   handle(async (req) => {
     await service.deleteCurrency(companyId(req), actorId(req), req.params.id);

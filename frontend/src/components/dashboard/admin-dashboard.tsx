@@ -154,7 +154,7 @@ export function AdminDashboard() {
               Welcome back, {getDisplayName(user)}
             </h2>
             <span className="px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-[11px] font-semibold">
-              Administrator
+              {user?.isSuperAdmin ? 'Super Admin' : 'Administrator'}
             </span>
           </div>
           <p className="text-[15px] text-muted-foreground">

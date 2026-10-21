@@ -15,6 +15,7 @@ const companyId = devStore.company.id;
 const DAY = 86_400_000;
 const ADMIN = TEST_USER_IDS.admin;
 const MANAGER = TEST_USER_IDS.manager;
+const SUPER_ADMIN = devStore.users.find((u) => u.isSuperAdmin)!.id;
 const STAFF_ROLE = '10000000-0000-0000-0000-000000000003';
 
 const app = express();
@@ -122,11 +123,13 @@ describe('Administrator console', () => {
       const role = devStore.roles.find((r) => r.name === 'Staff Member')!;
       const res = await request(app)
         .patch(`/api/v1/roles/${role.id}`)
-        .set(auth(ADMIN, 'admin@businesscrm.local'))
+        .set(auth(SUPER_ADMIN, 'superadmin@businesscrm.local'))
         .send({ description: 'Updated description' });
       expect([200, 201]).toContain(res.status);
       await new Promise((r) => setTimeout(r, 20));
-      expect(devStore.notifications.filter((n) => n.userId === ADMIN && n.type === 'role.updated')).toHaveLength(0);
+      // Roles are managed by a Super Admin, so the other administrator is the one who hears about it.
+      expect(devStore.notifications.filter((n) => n.userId === SUPER_ADMIN && n.type === 'role.updated')).toHaveLength(0);
+      expect(devStore.notifications.filter((n) => n.userId === ADMIN && n.type === 'role.updated')).toHaveLength(1);
     });
   });
 });
