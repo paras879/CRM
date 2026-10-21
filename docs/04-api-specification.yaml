@@ -1,0 +1,1244 @@
+openapi: 3.1.0
+info:
+  title: Business CRM API
+  version: 1.0.0
+  description: Starter contract. Complete request/response schemas and security requirements before implementation.
+servers:
+  - url: http://localhost:4000/api/v1
+tags:
+  - name: Auth
+  - name: Dashboard
+  - name: Leads
+  - name: Customers
+  - name: Projects
+  - name: Tasks
+  - name: Proposals
+  - name: Estimates
+  - name: Contracts
+  - name: Invoices
+  - name: Payments
+  - name: Expenses
+  - name: FinanceDashboard
+  - name: Tickets
+security:
+  - cookieAuth: []
+paths:
+  /health:
+    get:
+      security: []
+      summary: Health check
+      responses:
+        "200":
+          description: Service is healthy
+  /auth/login:
+    post:
+      security: []
+      tags: [Auth]
+      summary: Authenticate user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 1 }
+      responses:
+        "200": { description: Authenticated; secure cookie/session issued }
+        "400": { description: Invalid request }
+        "401": { description: Invalid credentials }
+        "429": { description: Rate limit exceeded }
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke current session
+      responses:
+        "204": { description: Logged out }
+        "401": { description: Unauthenticated }
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get current user and effective permissions
+      responses:
+        "200": { description: Current user }
+        "401": { description: Unauthenticated }
+  /dashboard/summary:
+    get:
+      tags: [Dashboard]
+      summary: Get permission-scoped dashboard summary
+      responses:
+        "200": { description: Dashboard metrics }
+        "401": { description: Unauthenticated }
+        "403": { description: Forbidden }
+  /leads:
+    get:
+      tags: [Leads]
+      summary: List leads
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, minimum: 1, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: status
+          schema: { type: string }
+        - in: query
+          name: search
+          schema: { type: string, maxLength: 120 }
+      responses:
+        "200": { description: Paginated leads }
+        "401": { description: Unauthenticated }
+        "403": { description: Forbidden }
+    post:
+      tags: [Leads]
+      summary: Create lead
+      responses:
+        "201": { description: Lead created }
+        "400": { description: Validation error }
+        "403": { description: Forbidden }
+  /leads/{leadId}:
+    parameters:
+      - in: path
+        name: leadId
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      tags: [Leads]
+      summary: Get lead detail
+      responses:
+        "200": { description: Lead detail }
+        "404": { description: Not found }
+    patch:
+      tags: [Leads]
+      summary: Update lead
+      responses:
+        "200": { description: Lead updated }
+        "400": { description: Validation error }
+        "403": { description: Forbidden }
+        "404": { description: Not found }
+  /leads/{leadId}/convert:
+    post:
+      tags: [Leads]
+      summary: Convert lead to customer/contact transactionally
+      parameters:
+        - in: path
+          name: leadId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Existing conversion returned or conversion completed }
+        "409": { description: Lead cannot be converted in current state }
+  /customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      responses:
+        "200": { description: Paginated customers }
+    post:
+      tags: [Customers]
+      summary: Create customer
+      responses:
+        "201": { description: Customer created }
+  /projects:
+    get:
+      tags: [Projects]
+      summary: List authorized projects
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [PLANNING, ACTIVE, ON_HOLD, COMPLETED, CANCELLED] }
+        - in: query
+          name: priority
+          schema: { type: string, enum: [LOW, MEDIUM, HIGH, URGENT] }
+        - in: query
+          name: customerId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: isArchived
+          schema: { type: boolean, default: false }
+      responses:
+        "200": { description: Paginated projects list with task progress summaries }
+        "401": { description: Unauthenticated }
+        "403": { description: Forbidden }
+    post:
+      tags: [Projects]
+      summary: Create project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string, minLength: 2, maxLength: 200 }
+                description: { type: string, maxLength: 2000 }
+                customerId: { type: string, format: uuid }
+                status: { type: string, enum: [PLANNING, ACTIVE, ON_HOLD, COMPLETED, CANCELLED] }
+                priority: { type: string, enum: [LOW, MEDIUM, HIGH, URGENT] }
+                startDate: { type: string, format: date-time }
+                deadline: { type: string, format: date-time }
+                budget: { type: number, minimum: 0 }
+                currency: { type: string, default: INR }
+                projectManagerId: { type: string, format: uuid }
+                memberIds: { type: array, items: { type: string, format: uuid } }
+      responses:
+        "201": { description: Project created }
+        "400": { description: Validation error or invalid customer/PM }
+  /projects/{projectId}:
+    get:
+      tags: [Projects]
+      summary: Get project detail with members, milestones, tasks, and time tracking
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Project details }
+        "404": { description: Project not found }
+    put:
+      tags: [Projects]
+      summary: Update project
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Project updated }
+        "404": { description: Project not found }
+  /projects/{projectId}/archive:
+    patch:
+      tags: [Projects]
+      summary: Archive project preserving related history
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Project archived }
+  /projects/{projectId}/restore:
+    patch:
+      tags: [Projects]
+      summary: Restore archived project
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Project restored }
+  /projects/{projectId}/members:
+    post:
+      tags: [Projects]
+      summary: Add member to project
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [userId]
+              properties:
+                userId: { type: string, format: uuid }
+                role: { type: string, default: MEMBER }
+      responses:
+        "201": { description: Member added }
+        "400": { description: Duplicate membership or invalid user }
+  /projects/{projectId}/members/{userId}:
+    delete:
+      tags: [Projects]
+      summary: Remove member from project
+      parameters:
+        - in: path
+          name: projectId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: userId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Member removed }
+  /milestones:
+    get:
+      tags: [Projects]
+      summary: List milestones
+      parameters:
+        - in: query
+          name: projectId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema: { type: string, enum: [PENDING, COMPLETED, CANCELLED] }
+      responses:
+        "200": { description: List of milestones with progress }
+    post:
+      tags: [Projects]
+      summary: Create milestone
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectId, name]
+              properties:
+                projectId: { type: string, format: uuid }
+                name: { type: string, minLength: 2, maxLength: 150 }
+                title: { type: string }
+                description: { type: string }
+                dueDate: { type: string, format: date-time }
+                status: { type: string, enum: [PENDING, COMPLETED, CANCELLED] }
+                order: { type: integer, default: 0 }
+      responses:
+        "201": { description: Milestone created }
+        "404": { description: Project not found }
+  /milestones/{milestoneId}:
+    get:
+      tags: [Projects]
+      summary: Get milestone details
+      responses:
+        "200": { description: Milestone details }
+    put:
+      tags: [Projects]
+      summary: Update milestone
+      responses:
+        "200": { description: Milestone updated }
+  /tasks:
+    get:
+      tags: [Tasks]
+      summary: List authorized tasks with filters
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 30 }
+        - in: query
+          name: projectId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: milestoneId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: status
+          schema: { type: string, enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE, BLOCKED] }
+        - in: query
+          name: priority
+          schema: { type: string, enum: [LOW, MEDIUM, HIGH, URGENT] }
+        - in: query
+          name: assignedToId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: overdue
+          schema: { type: boolean }
+        - in: query
+          name: dueSoon
+          schema: { type: boolean }
+      responses:
+        "200": { description: Paginated tasks list }
+    post:
+      tags: [Tasks]
+      summary: Create task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectId, title]
+              properties:
+                projectId: { type: string, format: uuid }
+                milestoneId: { type: string, format: uuid }
+                title: { type: string, minLength: 2, maxLength: 200 }
+                description: { type: string }
+                status: { type: string, enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE, BLOCKED] }
+                priority: { type: string, enum: [LOW, MEDIUM, HIGH, URGENT] }
+                dueDate: { type: string, format: date-time }
+                estimatedHours: { type: number, minimum: 0 }
+                assigneeIds: { type: array, items: { type: string, format: uuid } }
+      responses:
+        "201": { description: Task created }
+        "400": { description: Milestone does not belong to project }
+  /tasks/{taskId}:
+    get:
+      tags: [Tasks]
+      summary: Get task details with assignees, comments, and time entries
+      responses:
+        "200": { description: Task details }
+        "404": { description: Task not found }
+    put:
+      tags: [Tasks]
+      summary: Update task details
+      responses:
+        "200": { description: Task updated }
+  /tasks/{taskId}/status:
+    patch:
+      tags: [Tasks]
+      summary: Quick update task status
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status: { type: string, enum: [TODO, IN_PROGRESS, IN_REVIEW, DONE, BLOCKED] }
+      responses:
+        "200": { description: Status updated and completedAt adjusted }
+  /tasks/{taskId}/comments:
+    post:
+      tags: [Tasks]
+      summary: Add comment to task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string, minLength: 1, maxLength: 2000 }
+      responses:
+        "201": { description: Comment posted }
+  /tasks/{taskId}/comments/{commentId}:
+    delete:
+      tags: [Tasks]
+      summary: Delete task comment
+      responses:
+        "200": { description: Comment deleted }
+        "403": { description: Only author or admin can delete }
+  /time-entries:
+    get:
+      tags: [Projects]
+      summary: List time entries and aggregate billable/non-billable hours
+      parameters:
+        - in: query
+          name: projectId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: taskId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: userId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: billable
+          schema: { type: boolean }
+      responses:
+        "200": { description: Time entries with summary }
+    post:
+      tags: [Projects]
+      summary: Record tracked time entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [projectId, startedAt]
+              properties:
+                projectId: { type: string, format: uuid }
+                taskId: { type: string, format: uuid }
+                startedAt: { type: string, format: date-time }
+                endedAt: { type: string, format: date-time }
+                minutes: { type: integer, minimum: 1 }
+                description: { type: string }
+                billable: { type: boolean, default: true }
+      responses:
+        "201": { description: Time entry recorded }
+  /time-entries/{entryId}:
+    put:
+      tags: [Projects]
+      summary: Update time entry
+      responses:
+        "200": { description: Time entry updated }
+    delete:
+      tags: [Projects]
+      summary: Delete time entry
+      responses:
+        "200": { description: Time entry deleted }
+  /work-dashboard/metrics:
+    get:
+      tags: [Dashboard]
+      summary: Aggregate project & task delivery metrics, overdue counts, and tracked hours
+      responses:
+        "200": { description: Live project and task metrics }
+  /proposals:
+    get:
+      tags: [Proposals]
+      summary: List proposals with pagination, search, status, and customer filter
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [DRAFT, SENT, ACCEPTED, REJECTED, EXPIRED, CANCELLED] }
+        - in: query
+          name: customerId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        "200": { description: Paginated list of proposals }
+    post:
+      tags: [Proposals]
+      summary: Create new proposal with line items
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [customerId, subject, validUntil, currency, items]
+              properties:
+                customerId: { type: string, format: uuid }
+                contactId: { type: string, format: uuid }
+                projectId: { type: string, format: uuid }
+                title: { type: string }
+                subject: { type: string }
+                currency: { type: string, default: "INR" }
+                validUntil: { type: string, format: date-time }
+                notes: { type: string }
+                terms: { type: string }
+                discount: { type: number, default: 0 }
+                items:
+                  type: array
+                  items:
+                    type: object
+                    required: [description, quantity, unitPrice]
+                    properties:
+                      description: { type: string }
+                      quantity: { type: number, minimum: 1 }
+                      unitPrice: { type: number, minimum: 0 }
+                      discount: { type: number, default: 0 }
+                      taxRate: { type: number, default: 0 }
+      responses:
+        "201": { description: Proposal created }
+  /proposals/{proposalId}:
+    get:
+      tags: [Proposals]
+      summary: Get proposal details with items
+      parameters:
+        - in: path
+          name: proposalId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Proposal details }
+        "404": { description: Proposal not found }
+    patch:
+      tags: [Proposals]
+      summary: Update proposal fields and status
+      parameters:
+        - in: path
+          name: proposalId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Proposal updated }
+    delete:
+      tags: [Proposals]
+      summary: Archive or delete proposal
+      parameters:
+        - in: path
+          name: proposalId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Proposal archived }
+  /proposals/{proposalId}/convert-to-invoice:
+    post:
+      tags: [Proposals]
+      summary: Convert accepted proposal to invoice atomically with duplicate prevention
+      parameters:
+        - in: path
+          name: proposalId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201": { description: Converted invoice created }
+        "400": { description: Proposal already converted or invalid state }
+  /proposals/{proposalId}/convert-to-estimate:
+    post:
+      tags: [Proposals]
+      summary: Convert proposal to estimate
+      parameters:
+        - in: path
+          name: proposalId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201": { description: Estimate created }
+  /estimates:
+    get:
+      tags: [Estimates]
+      summary: List estimates with pagination, search, and status filter
+      responses:
+        "200": { description: Paginated estimates }
+    post:
+      tags: [Estimates]
+      summary: Create estimate with itemized prices and tax snapshots
+      responses:
+        "201": { description: Estimate created }
+  /estimates/{estimateId}:
+    get:
+      tags: [Estimates]
+      summary: Get estimate details
+      parameters:
+        - in: path
+          name: estimateId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Estimate details }
+    patch:
+      tags: [Estimates]
+      summary: Update estimate
+      parameters:
+        - in: path
+          name: estimateId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Estimate updated }
+    delete:
+      tags: [Estimates]
+      summary: Archive estimate
+      parameters:
+        - in: path
+          name: estimateId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Estimate archived }
+  /estimates/{estimateId}/convert-to-invoice:
+    post:
+      tags: [Estimates]
+      summary: Convert accepted quotation to invoice atomically
+      parameters:
+        - in: path
+          name: estimateId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "201": { description: Converted invoice created }
+        "400": { description: Already converted or not accepted }
+  /contracts:
+    get:
+      tags: [Contracts]
+      summary: List contracts with expiry highlights
+      parameters:
+        - in: query
+          name: isExpiring
+          schema: { type: boolean }
+      responses:
+        "200": { description: Paginated contracts }
+    post:
+      tags: [Contracts]
+      summary: Create customer contract
+      responses:
+        "201": { description: Contract created }
+  /contracts/{contractId}:
+    get:
+      tags: [Contracts]
+      summary: Get contract details
+      parameters:
+        - in: path
+          name: contractId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Contract details }
+    patch:
+      tags: [Contracts]
+      summary: Update contract
+      parameters:
+        - in: path
+          name: contractId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Contract updated }
+    delete:
+      tags: [Contracts]
+      summary: Archive contract
+      parameters:
+        - in: path
+          name: contractId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Contract archived }
+  /invoices:
+    get:
+      tags: [Invoices]
+      summary: List invoices with balance tracking and payment statuses
+      responses:
+        "200": { description: Paginated invoices }
+    post:
+      tags: [Invoices]
+      summary: Create invoice with precision Decimal arithmetic
+      responses:
+        "201": { description: Invoice created }
+  /invoices/{invoiceId}:
+    get:
+      tags: [Invoices]
+      summary: Get invoice details, payments list, and outstanding balance
+      parameters:
+        - in: path
+          name: invoiceId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Detailed invoice with payments }
+    patch:
+      tags: [Invoices]
+      summary: Update draft invoice
+      parameters:
+        - in: path
+          name: invoiceId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Invoice updated }
+    delete:
+      tags: [Invoices]
+      summary: Delete unissued draft invoice or cancel issued invoice
+      parameters:
+        - in: path
+          name: invoiceId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Invoice cancelled or deleted }
+  /invoices/{invoiceId}/issue:
+    post:
+      tags: [Invoices]
+      summary: Issue draft invoice and assign permanent number
+      parameters:
+        - in: path
+          name: invoiceId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Invoice issued }
+  /invoices/{invoiceId}/void:
+    post:
+      tags: [Invoices]
+      summary: Void invoice and log in audit history
+      parameters:
+        - in: path
+          name: invoiceId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Invoice voided }
+  /payments:
+    get:
+      tags: [Payments]
+      summary: List payments and reconcile receipts
+      responses:
+        "200": { description: Paginated payments }
+    post:
+      tags: [Payments]
+      summary: Record manual payment against invoice with overpayment prevention
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [invoiceId, amount, method]
+              properties:
+                invoiceId: { type: string, format: uuid }
+                amount: { type: number, minimum: 0.01 }
+                method: { type: string, enum: [BANK_TRANSFER, CASH, CARD, CHEQUE, OTHER] }
+                reference: { type: string }
+                paidAt: { type: string, format: date-time }
+                notes: { type: string }
+                idempotencyKey: { type: string }
+      responses:
+        "201": { description: Payment recorded and invoice balance updated }
+        "400": { description: Amount exceeds outstanding balance or invalid invoice }
+  /payments/{paymentId}:
+    get:
+      tags: [Payments]
+      summary: Get payment details
+      parameters:
+        - in: path
+          name: paymentId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Payment details }
+  /payments/{paymentId}/reverse:
+    post:
+      tags: [Payments]
+      summary: Reverse payment with auditable reason and restore invoice balance
+      parameters:
+        - in: path
+          name: paymentId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason: { type: string, minLength: 3 }
+      responses:
+        "200": { description: Payment reversed }
+  /expenses:
+    get:
+      tags: [Expenses]
+      summary: List expenses by category, customer, project, date range
+      responses:
+        "200": { description: Paginated expenses }
+    post:
+      tags: [Expenses]
+      summary: Record new operational outlay
+      responses:
+        "201": { description: Expense recorded }
+  /expenses/categories:
+    get:
+      tags: [Expenses]
+      summary: List configurable expense categories
+      responses:
+        "200": { description: Categories list }
+    post:
+      tags: [Expenses]
+      summary: Create new expense category
+      responses:
+        "201": { description: Category created }
+  /expenses/{expenseId}:
+    get:
+      tags: [Expenses]
+      summary: Get expense details
+      parameters:
+        - in: path
+          name: expenseId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Expense details }
+    patch:
+      tags: [Expenses]
+      summary: Update expense
+      parameters:
+        - in: path
+          name: expenseId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Expense updated }
+    delete:
+      tags: [Expenses]
+      summary: Delete expense
+      parameters:
+        - in: path
+          name: expenseId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Expense deleted }
+  /expenses/{expenseId}/approve:
+    post:
+      tags: [Expenses]
+      summary: Approve expense for reimbursement/accounting
+      parameters:
+        - in: path
+          name: expenseId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Expense approved }
+  /expenses/{expenseId}/reject:
+    post:
+      tags: [Expenses]
+      summary: Reject expense
+      parameters:
+        - in: path
+          name: expenseId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Expense rejected }
+  /finance-dashboard/summary:
+    get:
+      tags: [FinanceDashboard]
+      summary: Real-time currency-separated metrics, aging balances, and cash collections
+      responses:
+        "200": { description: Financial KPIs and summaries }
+  /tickets:
+    get:
+      tags: [SupportDesk]
+      summary: List authorized support tickets with filters, search, and pagination
+      parameters:
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+        - in: query
+          name: status
+          schema: { type: string, enum: [OPEN, IN_PROGRESS, WAITING_ON_CUSTOMER, RESOLVED, CLOSED] }
+        - in: query
+          name: priority
+          schema: { type: string, enum: [LOW, MEDIUM, HIGH, URGENT] }
+        - in: query
+          name: categoryId
+          schema: { type: string }
+        - in: query
+          name: isOverdue
+          schema: { type: boolean }
+        - in: query
+          name: search
+          schema: { type: string }
+      responses:
+        "200": { description: Paginated tickets }
+    post:
+      tags: [SupportDesk]
+      summary: Create new support ticket with SLA deadline and category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject, description]
+              properties:
+                customerId: { type: string, format: uuid }
+                contactId: { type: string, format: uuid }
+                categoryId: { type: string }
+                subject: { type: string }
+                description: { type: string }
+                priority: { type: string, enum: [LOW, MEDIUM, HIGH, URGENT], default: MEDIUM }
+                department: { type: string }
+                assignedTo: { type: string, format: uuid }
+                dueDate: { type: string, format: date-time }
+                slaDueAt: { type: string, format: date-time }
+                attachmentUrls: { type: array, items: { type: string } }
+      responses:
+        "201": { description: Ticket created }
+  /tickets/categories:
+    get:
+      tags: [SupportDesk]
+      summary: List all ticket categories
+      responses:
+        "200": { description: Categories list }
+    post:
+      tags: [SupportDesk]
+      summary: Create new ticket category
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name: { type: string }
+                description: { type: string }
+                isDefault: { type: boolean, default: false }
+      responses:
+        "201": { description: Category created }
+  /tickets/{ticketId}:
+    get:
+      tags: [SupportDesk]
+      summary: Get ticket detail with conversation timeline and audit history
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: query
+          name: includeInternal
+          schema: { type: boolean, default: true }
+      responses:
+        "200": { description: Ticket detail }
+        "404": { description: Ticket not found }
+    put:
+      tags: [SupportDesk]
+      summary: Update ticket status, priority, or assignee
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Ticket updated }
+    patch:
+      tags: [SupportDesk]
+      summary: Partially update ticket fields
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Ticket updated }
+    delete:
+      tags: [SupportDesk]
+      summary: Soft archive support ticket preserving conversation history
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Ticket archived }
+  /tickets/{ticketId}/replies:
+    post:
+      tags: [SupportDesk]
+      summary: Post a customer-facing reply or staff-only private internal note
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string, format: uuid }
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [body]
+              properties:
+                body: { type: string }
+                isInternal: { type: boolean, default: false }
+                attachmentUrls: { type: array, items: { type: string } }
+      responses:
+        "201": { description: Reply posted }
+  /tickets/{ticketId}/replies/{replyId}:
+    delete:
+      tags: [SupportDesk]
+      summary: Delete ticket reply with audit recording
+      parameters:
+        - in: path
+          name: ticketId
+          required: true
+          schema: { type: string, format: uuid }
+        - in: path
+          name: replyId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Reply removed }
+  /knowledge-base/categories:
+    get:
+      tags: [KnowledgeBase]
+      summary: List knowledge base categories
+      responses:
+        "200": { description: KB categories }
+    post:
+      tags: [KnowledgeBase]
+      summary: Create knowledge base category
+      responses:
+        "201": { description: Category created }
+  /knowledge-base/tags:
+    get:
+      tags: [KnowledgeBase]
+      summary: List knowledge base tags
+      responses:
+        "200": { description: KB tags }
+  /knowledge-base/articles:
+    get:
+      tags: [KnowledgeBase]
+      summary: List and search KB articles by title, summary, body, category, and tags
+      parameters:
+        - in: query
+          name: search
+          schema: { type: string }
+        - in: query
+          name: categoryId
+          schema: { type: string }
+        - in: query
+          name: tag
+          schema: { type: string }
+        - in: query
+          name: status
+          schema: { type: string, enum: [DRAFT, PUBLISHED, ARCHIVED] }
+      responses:
+        "200": { description: Paginated articles }
+    post:
+      tags: [KnowledgeBase]
+      summary: Create new KB article with automatic collision-safe slug generation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [title, body]
+              properties:
+                title: { type: string }
+                summary: { type: string }
+                body: { type: string }
+                categoryId: { type: string }
+                status: { type: string, enum: [DRAFT, PUBLISHED, ARCHIVED], default: DRAFT }
+                tagNames: { type: array, items: { type: string } }
+      responses:
+        "201": { description: Article created }
+  /knowledge-base/articles/{slugOrId}:
+    get:
+      tags: [KnowledgeBase]
+      summary: Retrieve article by slug or ID with view count tracking and related guides
+      parameters:
+        - in: path
+          name: slugOrId
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Article detail }
+    put:
+      tags: [KnowledgeBase]
+      summary: Update article content, category, or publish state
+      parameters:
+        - in: path
+          name: slugOrId
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Article updated }
+    patch:
+      tags: [KnowledgeBase]
+      summary: Partially update article
+      parameters:
+        - in: path
+          name: slugOrId
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Article updated }
+    delete:
+      tags: [KnowledgeBase]
+      summary: Archive KB article
+      parameters:
+        - in: path
+          name: slugOrId
+          required: true
+          schema: { type: string }
+      responses:
+        "200": { description: Article archived }
+  /notifications:
+    get:
+      tags: [Notifications]
+      summary: List user notifications with read status filtering
+      parameters:
+        - in: query
+          name: unreadOnly
+          schema: { type: boolean }
+        - in: query
+          name: page
+          schema: { type: integer, default: 1 }
+        - in: query
+          name: limit
+          schema: { type: integer, default: 20 }
+      responses:
+        "200": { description: Notifications list }
+  /notifications/unread-count:
+    get:
+      tags: [Notifications]
+      summary: Get count of unread notifications for current authenticated user
+      responses:
+        "200": { description: Unread count }
+  /notifications/{notificationId}/read:
+    patch:
+      tags: [Notifications]
+      summary: Mark a single notification as read with ownership verification
+      parameters:
+        - in: path
+          name: notificationId
+          required: true
+          schema: { type: string, format: uuid }
+      responses:
+        "200": { description: Notification marked read }
+  /notifications/mark-all-read:
+    patch:
+      tags: [Notifications]
+      summary: Mark all user notifications as read
+      responses:
+        "200": { description: All marked read }
+    post:
+      tags: [Notifications]
+      summary: Mark all user notifications as read
+      responses:
+        "200": { description: All marked read }
+  /reports/crm:
+    get:
+      tags: [Reports]
+      summary: Aggregate CRM reports (leads by status/source, conversion rate, customer growth)
+      responses:
+        "200": { description: CRM aggregate report }
+  /reports/projects:
+    get:
+      tags: [Reports]
+      summary: Aggregate project reports (active/completed, overdue tasks, time logged)
+      responses:
+        "200": { description: Projects aggregate report }
+  /reports/finance:
+    get:
+      tags: [Reports]
+      summary: Aggregate financial reports strictly separated by currency (invoiced, collected, overdue, expenses)
+      responses:
+        "200": { description: Financial aggregate report }
+  /reports/support:
+    get:
+      tags: [Reports]
+      summary: Aggregate support desk reports (tickets by priority/status/assignee, SLA breach rate, resolution time)
+      responses:
+        "200": { description: Support aggregate report }
+  /reports/export:
+    get:
+      tags: [Reports]
+      summary: Export tabular report in RFC 4180 CSV with formula injection sanitization
+      parameters:
+        - in: query
+          name: type
+          required: true
+          schema: { type: string, enum: [crm, projects, finance, support] }
+      responses:
+        "200":
+          description: CSV file attachment
+          content:
+            text/csv:
+              schema: { type: string }
+components:
+  securitySchemes:
+    cookieAuth:
+      type: apiKey
+      in: cookie
+      name: crm_session

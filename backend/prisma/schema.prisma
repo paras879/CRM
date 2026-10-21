@@ -1,0 +1,1170 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  INVITED
+  DISABLED
+}
+
+enum CustomerType {
+  COMPANY
+  INDIVIDUAL
+}
+
+enum CustomerStatus {
+  ACTIVE
+  INACTIVE
+}
+
+enum LeadStatus {
+  NEW
+  CONTACTED
+  QUALIFIED
+  PROPOSAL
+  WON
+  LOST
+}
+
+enum LeadPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ActivityType {
+  CALL
+  MEETING
+  TASK
+  EMAIL
+  FOLLOW_UP
+  NOTE
+  OTHER
+}
+
+enum ActivityStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum ProjectStatus {
+  PLANNING
+  ACTIVE
+  ON_HOLD
+  COMPLETED
+  CANCELLED
+}
+
+enum MilestoneStatus {
+  PENDING
+  COMPLETED
+  CANCELLED
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  IN_REVIEW
+  DONE
+  BLOCKED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ProposalStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum EstimateStatus {
+  DRAFT
+  SENT
+  ACCEPTED
+  DECLINED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum ContractStatus {
+  DRAFT
+  ACTIVE
+  EXPIRING
+  EXPIRED
+  TERMINATED
+}
+
+enum InvoiceStatus {
+  DRAFT
+  ISSUED
+  UNPAID
+  PARTIALLY_PAID
+  PAID
+  OVERDUE
+  VOID
+  CANCELLED
+}
+
+enum PaymentMethod {
+  BANK_TRANSFER
+  CASH
+  CARD
+  CHEQUE
+  OTHER
+}
+
+enum TicketStatus {
+  OPEN
+  IN_PROGRESS
+  WAITING_ON_CUSTOMER
+  RESOLVED
+  CLOSED
+}
+
+enum TicketPriority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+enum ArticleStatus {
+  DRAFT
+  PUBLISHED
+  ARCHIVED
+}
+
+model Company {
+  id          String       @id @default(uuid()) @db.Uuid
+  name        String
+  email       String?
+  phone       String?
+  address     String?
+  currency    String       @default("INR")
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  users       User[]
+  roles       Role[]
+  customers   Customer[]
+  leads       Lead[]
+  leadSources LeadSource[]
+  leadStatuses LeadStatusConfig[]
+  activities  Activity[]
+  notes       Note[]
+  projects    Project[]
+  invoices    Invoice[]
+  proposals   Proposal[]
+  estimates   Estimate[]
+  contracts   Contract[]
+  expenses    Expense[]
+  expenseCategories ExpenseCategory[]
+  tickets     Ticket[]
+  ticketCategories TicketCategory[]
+  kbCategories KnowledgeBaseCategory[]
+  kbArticles  KnowledgeBaseArticle[]
+  kbTags      KnowledgeBaseTag[]
+  taxRates    TaxRate[]
+  currencies  Currency[]
+  auditLogs   AuditLog[]
+  attachments Attachment[]
+  recurringInvoices RecurringInvoice[]
+
+  @@map("companies")
+}
+
+model User {
+  id                 String               @id @default(uuid()) @db.Uuid
+  companyId          String               @db.Uuid
+  company            Company              @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name               String
+  email              String
+  passwordHash       String
+  status             UserStatus           @default(INVITED)
+  lastLoginAt        DateTime?
+  managerId          String?              @db.Uuid
+  manager            User?                @relation("UserManager", fields: [managerId], references: [id], onDelete: SetNull)
+  directReports      User[]               @relation("UserManager")
+  createdAt          DateTime             @default(now())
+  updatedAt          DateTime             @updatedAt
+
+  userRoles          UserRole[]
+  refreshTokens      RefreshToken[]
+  passwordResetTokens PasswordResetToken[]
+  ownedLeads         Lead[]               @relation("LeadOwner")
+  assignedCustomers  Customer[]           @relation("AssignedCustomers")
+  assignedActivities Activity[]           @relation("AssignedActivities")
+  authoredNotes      Note[]
+  managedProjects    Project[]            @relation("ProjectManager")
+  createdTasks       Task[]               @relation("TaskCreator")
+  assignedTasks      TaskAssignee[]
+  projectMemberships ProjectMember[]
+  assignedTickets    Ticket[]             @relation("AssignedTickets")
+  ticketReplies      TicketReply[]
+  taskComments       TaskComment[]
+  timeEntries        TimeEntry[]
+  recordedPayments   Payment[]
+  createdExpenses    Expense[]            @relation("ExpenseCreator")
+  notifications      Notification[]
+  kbArticles         KnowledgeBaseArticle[]
+  auditLogs          AuditLog[]
+  uploadedAttachments Attachment[]
+
+  @@unique([companyId, email])
+  @@index([companyId, status])
+  @@index([managerId])
+  @@map("users")
+}
+
+model Role {
+  id          String           @id @default(uuid()) @db.Uuid
+  companyId   String           @db.Uuid
+  company     Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name        String
+  description String?
+  isSystem    Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  updatedAt   DateTime         @updatedAt
+
+  userRoles   UserRole[]
+  permissions RolePermission[]
+
+  @@unique([companyId, name])
+  @@map("roles")
+}
+
+model Permission {
+  id          String           @id @default(uuid()) @db.Uuid
+  key         String           @unique
+  description String?
+  module      String?
+  roles       RolePermission[]
+
+  @@map("permissions")
+}
+
+model UserRole {
+  userId    String   @db.Uuid
+  roleId    String   @db.Uuid
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      Role     @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@id([userId, roleId])
+  @@map("user_roles")
+}
+
+model RolePermission {
+  roleId       String     @db.Uuid
+  permissionId String     @db.Uuid
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  createdAt    DateTime   @default(now())
+
+  @@id([roleId, permissionId])
+  @@map("role_permissions")
+}
+
+model RefreshToken {
+  id                  String    @id @default(uuid()) @db.Uuid
+  userId              String    @db.Uuid
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash           String    @unique
+  revoked             Boolean   @default(false)
+  revokedAt           DateTime?
+  replacedByTokenHash String?
+  userAgent           String?
+  ipAddress           String?
+  expiresAt           DateTime
+  createdAt           DateTime  @default(now())
+
+  @@index([userId, revoked, expiresAt])
+  @@map("refresh_tokens")
+}
+
+model PasswordResetToken {
+  id        String    @id @default(uuid()) @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique
+  used      Boolean   @default(false)
+  usedAt    DateTime?
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+
+  @@index([userId, used, expiresAt])
+  @@map("password_reset_tokens")
+}
+
+model Customer {
+  id           String         @id @default(uuid()) @db.Uuid
+  companyId    String         @db.Uuid
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  type         CustomerType   @default(COMPANY)
+  name         String
+  companyName  String?
+  email        String?
+  phone        String?
+  website      String?
+  address      String?
+  city         String?
+  state        String?
+  country      String?
+  zipCode      String?
+  taxId        String?
+  status       CustomerStatus @default(ACTIVE)
+  isArchived   Boolean        @default(false)
+  assignedToId String?        @db.Uuid
+  assignedTo   User?          @relation("AssignedCustomers", fields: [assignedToId], references: [id], onDelete: SetNull)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  contacts     Contact[]
+  activities   Activity[]
+  notes        Note[]
+  projects     Project[]
+  invoices     Invoice[]
+  recurringInvoices RecurringInvoice[]
+  proposals    Proposal[]
+  estimates    Estimate[]
+  contracts    Contract[]
+  leads        Lead[]
+  tickets      Ticket[]
+  expenses     Expense[]
+
+  @@index([companyId, name])
+  @@index([companyId, status])
+  @@index([companyId, isArchived])
+  @@map("customers")
+}
+
+model Contact {
+  id                 String     @id @default(uuid()) @db.Uuid
+  customerId         String     @db.Uuid
+  customer           Customer   @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  name               String
+  email              String?
+  phone              String?
+  title              String?
+  isPrimary          Boolean    @default(false)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+
+  convertedFromLeads Lead[]     @relation("ConvertedLeadContact")
+  proposals          Proposal[]
+  estimates          Estimate[]
+  tickets            Ticket[]
+
+  @@index([customerId])
+  @@map("contacts")
+}
+
+model LeadSource {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @db.Uuid
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name      String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leads     Lead[]
+
+  @@unique([companyId, name])
+  @@map("lead_sources")
+}
+
+model LeadStatusConfig {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @db.Uuid
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name      String
+  color     String?
+  order     Int      @default(0)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  leads     Lead[]
+
+  @@unique([companyId, name])
+  @@map("lead_statuses")
+}
+
+model Lead {
+  id                 String            @id @default(uuid()) @db.Uuid
+  companyId          String            @db.Uuid
+  company            Company           @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  title              String?
+  name               String
+  companyName        String?
+  email              String?
+  phone              String?
+  value              Decimal?          @db.Decimal(14, 2)
+  currency           String            @default("INR")
+  status             LeadStatus        @default(NEW)
+  statusId           String?           @db.Uuid
+  statusRef          LeadStatusConfig? @relation(fields: [statusId], references: [id], onDelete: SetNull)
+  source             String?
+  sourceId           String?           @db.Uuid
+  sourceRef          LeadSource?       @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  priority           LeadPriority      @default(MEDIUM)
+  description        String?
+  nextFollowUp       DateTime?
+  ownerId            String?           @db.Uuid
+  owner              User?             @relation("LeadOwner", fields: [ownerId], references: [id], onDelete: SetNull)
+  isArchived         Boolean           @default(false)
+  convertedToId      String?           @db.Uuid
+  convertedTo        Customer?         @relation(fields: [convertedToId], references: [id], onDelete: SetNull)
+  convertedContactId String?           @db.Uuid
+  convertedContact   Contact?          @relation("ConvertedLeadContact", fields: [convertedContactId], references: [id], onDelete: SetNull)
+  convertedAt        DateTime?
+  createdAt          DateTime          @default(now())
+  updatedAt          DateTime          @updatedAt
+
+  activities         Activity[]
+  notes              Note[]
+
+  @@index([companyId, status])
+  @@index([companyId, createdAt])
+  @@index([companyId, isArchived])
+  @@map("leads")
+}
+
+model Activity {
+  id           String         @id @default(uuid()) @db.Uuid
+  companyId    String         @db.Uuid
+  company      Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  type         ActivityType   @default(FOLLOW_UP)
+  subject      String
+  description  String?
+  dueDate      DateTime?
+  status       ActivityStatus @default(PENDING)
+  completedAt  DateTime?
+  assignedToId String?        @db.Uuid
+  assignedTo   User?          @relation("AssignedActivities", fields: [assignedToId], references: [id], onDelete: SetNull)
+  customerId   String?        @db.Uuid
+  customer     Customer?      @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  leadId       String?        @db.Uuid
+  lead         Lead?          @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdAt    DateTime       @default(now())
+  updatedAt    DateTime       @updatedAt
+
+  @@index([companyId, type, status])
+  @@index([companyId, dueDate])
+  @@index([customerId])
+  @@index([leadId])
+  @@map("activities")
+}
+
+model Note {
+  id         String    @id @default(uuid()) @db.Uuid
+  companyId  String    @db.Uuid
+  company    Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  authorId   String    @db.Uuid
+  author     User      @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  body       String
+  customerId String?   @db.Uuid
+  customer   Customer? @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  leadId     String?   @db.Uuid
+  lead       Lead?     @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  createdAt  DateTime  @default(now())
+  updatedAt  DateTime  @updatedAt
+
+  @@index([companyId])
+  @@index([customerId])
+  @@index([leadId])
+  @@map("notes")
+}
+
+model Project {
+  id               String          @id @default(uuid()) @db.Uuid
+  companyId        String          @db.Uuid
+  company          Company         @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  customerId       String?         @db.Uuid
+  customer         Customer?       @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  name             String
+  description      String?
+  status           ProjectStatus   @default(PLANNING)
+  priority         TaskPriority    @default(MEDIUM)
+  startDate        DateTime?
+  deadline         DateTime?
+  dueDate          DateTime?
+  progress         Int             @default(0)
+  budget           Decimal?        @db.Decimal(14, 2)
+  currency         String          @default("INR")
+  projectManagerId String?         @db.Uuid
+  projectManager   User?           @relation("ProjectManager", fields: [projectManagerId], references: [id], onDelete: SetNull)
+  isArchived       Boolean         @default(false)
+  createdAt        DateTime        @default(now())
+  updatedAt        DateTime        @updatedAt
+
+  members          ProjectMember[]
+  tasks            Task[]
+  milestones       Milestone[]
+  timeEntries      TimeEntry[]
+  proposals        Proposal[]
+  estimates        Estimate[]
+  contracts        Contract[]
+  invoices         Invoice[]
+  expenses         Expense[]
+
+  @@index([companyId, status])
+  @@index([companyId, isArchived])
+  @@index([customerId])
+  @@map("projects")
+}
+
+model ProjectMember {
+  projectId String   @db.Uuid
+  userId    String   @db.Uuid
+  project   Project  @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role      String?  @default("MEMBER")
+  createdAt DateTime @default(now())
+
+  @@id([projectId, userId])
+  @@map("project_members")
+}
+
+model Milestone {
+  id          String          @id @default(uuid()) @db.Uuid
+  projectId   String          @db.Uuid
+  project     Project         @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  name        String
+  title       String?
+  description String?
+  dueDate     DateTime?
+  status      MilestoneStatus @default(PENDING)
+  completedAt DateTime?
+  order       Int             @default(0)
+  isArchived  Boolean         @default(false)
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  tasks       Task[]
+
+  @@index([projectId, isArchived])
+  @@map("milestones")
+}
+
+model Task {
+  id             String         @id @default(uuid()) @db.Uuid
+  projectId      String         @db.Uuid
+  project        Project        @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  milestoneId    String?        @db.Uuid
+  milestone      Milestone?     @relation(fields: [milestoneId], references: [id], onDelete: SetNull)
+  creatorId      String?        @db.Uuid
+  creator        User?          @relation("TaskCreator", fields: [creatorId], references: [id], onDelete: SetNull)
+  title          String
+  description    String?
+  status         TaskStatus     @default(TODO)
+  priority       TaskPriority   @default(MEDIUM)
+  startDate      DateTime?
+  dueDate        DateTime?
+  completedAt    DateTime?
+  estimatedHours Decimal?       @db.Decimal(8, 2)
+  isArchived     Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  assignees      TaskAssignee[]
+  comments       TaskComment[]
+  timeEntries    TimeEntry[]
+
+  @@index([projectId, status])
+  @@index([status, dueDate])
+  @@index([milestoneId])
+  @@index([projectId, isArchived])
+  @@map("tasks")
+}
+
+model TaskAssignee {
+  taskId String @db.Uuid
+  userId String @db.Uuid
+  task   Task   @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@map("task_assignees")
+}
+
+model TaskComment {
+  id        String   @id @default(uuid()) @db.Uuid
+  taskId    String   @db.Uuid
+  task      Task     @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  authorId  String   @db.Uuid
+  author    User     @relation(fields: [authorId], references: [id], onDelete: Cascade)
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([taskId, createdAt])
+  @@map("task_comments")
+}
+
+model TimeEntry {
+  id          String    @id @default(uuid()) @db.Uuid
+  projectId   String    @db.Uuid
+  project     Project   @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  taskId      String?   @db.Uuid
+  task        Task?     @relation(fields: [taskId], references: [id], onDelete: SetNull)
+  userId      String    @db.Uuid
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  description String?
+  startedAt   DateTime
+  endedAt     DateTime?
+  minutes     Int       @default(0)
+  billable    Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([projectId, startedAt])
+  @@index([taskId])
+  @@index([userId])
+  @@map("time_entries")
+}
+
+model Proposal {
+  id                    String         @id @default(uuid()) @db.Uuid
+  companyId             String         @db.Uuid
+  company               Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  customerId            String         @db.Uuid
+  customer              Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  contactId             String?        @db.Uuid
+  contact               Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  projectId             String?        @db.Uuid
+  project               Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  proposalNumber        String
+  title                 String?
+  subject               String
+  status                ProposalStatus @default(DRAFT)
+  currency              String         @default("INR")
+  subtotal              Decimal        @default(0) @db.Decimal(14, 2)
+  discount              Decimal        @default(0) @db.Decimal(14, 2)
+  discountTotal         Decimal        @default(0) @db.Decimal(14, 2)
+  taxTotal              Decimal        @default(0) @db.Decimal(14, 2)
+  total                 Decimal        @default(0) @db.Decimal(14, 2)
+  validUntil            DateTime?
+  issuedAt              DateTime?
+  notes                 String?
+  terms                 String?
+  isArchived            Boolean        @default(false)
+  convertedToEstimateId String?        @db.Uuid
+  convertedToInvoiceId  String?        @db.Uuid
+  convertedAt           DateTime?
+  createdAt             DateTime       @default(now())
+  updatedAt             DateTime       @updatedAt
+
+  items                 ProposalItem[]
+
+  @@unique([companyId, proposalNumber])
+  @@index([companyId, status])
+  @@index([projectId])
+  @@index([customerId])
+  @@map("proposals")
+}
+
+model ProposalItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  proposalId  String   @db.Uuid
+  proposal    Proposal @relation(fields: [proposalId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal  @db.Decimal(12, 3)
+  unitPrice   Decimal  @db.Decimal(14, 2)
+  discount    Decimal  @default(0) @db.Decimal(14, 2)
+  taxRate     Decimal  @default(0) @db.Decimal(7, 4)
+  lineTotal   Decimal  @db.Decimal(14, 2)
+  order       Int      @default(0)
+
+  @@index([proposalId])
+  @@map("proposal_items")
+}
+
+model Estimate {
+  id                   String         @id @default(uuid()) @db.Uuid
+  companyId            String         @db.Uuid
+  company              Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  customerId           String         @db.Uuid
+  customer             Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  contactId            String?        @db.Uuid
+  contact              Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  projectId            String?        @db.Uuid
+  project              Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  estimateNumber       String
+  title                String?
+  status               EstimateStatus @default(DRAFT)
+  currency             String         @default("INR")
+  subtotal             Decimal        @default(0) @db.Decimal(14, 2)
+  discount             Decimal        @default(0) @db.Decimal(14, 2)
+  discountTotal        Decimal        @default(0) @db.Decimal(14, 2)
+  taxTotal             Decimal        @default(0) @db.Decimal(14, 2)
+  total                Decimal        @default(0) @db.Decimal(14, 2)
+  validUntil           DateTime?
+  issuedAt             DateTime?
+  acceptedAt           DateTime?
+  declinedAt           DateTime?
+  notes                String?
+  terms                String?
+  isArchived           Boolean        @default(false)
+  convertedToInvoiceId String?        @db.Uuid
+  convertedAt          DateTime?
+  createdAt            DateTime       @default(now())
+  updatedAt            DateTime       @updatedAt
+
+  items                EstimateItem[]
+
+  @@unique([companyId, estimateNumber])
+  @@index([companyId, status])
+  @@index([projectId])
+  @@index([customerId])
+  @@map("estimates")
+}
+
+model EstimateItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  estimateId  String   @db.Uuid
+  estimate    Estimate @relation(fields: [estimateId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal  @db.Decimal(12, 3)
+  unitPrice   Decimal  @db.Decimal(14, 2)
+  discount    Decimal  @default(0) @db.Decimal(14, 2)
+  taxRate     Decimal  @default(0) @db.Decimal(7, 4)
+  lineTotal   Decimal  @db.Decimal(14, 2)
+  order       Int      @default(0)
+
+  @@index([estimateId])
+  @@map("estimate_items")
+}
+
+model Contract {
+  id             String         @id @default(uuid()) @db.Uuid
+  companyId      String         @db.Uuid
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  customerId     String         @db.Uuid
+  customer       Customer       @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  projectId      String?        @db.Uuid
+  project        Project?       @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  contractNumber String
+  subject        String
+  contractType   String?
+  value          Decimal        @db.Decimal(14, 2)
+  currency       String         @default("INR")
+  status         ContractStatus @default(DRAFT)
+  startDate      DateTime
+  endDate        DateTime?
+  description    String?
+  terms          String?
+  attachmentUrl  String?
+  isArchived     Boolean        @default(false)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  @@unique([companyId, contractNumber])
+  @@index([companyId, status])
+  @@index([projectId])
+  @@index([customerId])
+  @@map("contracts")
+}
+
+enum RecurringFrequency {
+  WEEKLY
+  MONTHLY
+  QUARTERLY
+  YEARLY
+}
+
+model Invoice {
+  id            String        @id @default(uuid()) @db.Uuid
+  companyId     String        @db.Uuid
+  company       Company       @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  customerId    String        @db.Uuid
+  customer      Customer      @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  projectId     String?       @db.Uuid
+  project       Project?      @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  invoiceNumber String
+  title         String?
+  status        InvoiceStatus @default(DRAFT)
+  currency      String        @default("INR")
+  subtotal      Decimal       @default(0) @db.Decimal(14, 2)
+  discount      Decimal       @default(0) @db.Decimal(14, 2)
+  discountTotal Decimal       @default(0) @db.Decimal(14, 2)
+  taxTotal      Decimal       @default(0) @db.Decimal(14, 2)
+  total         Decimal       @default(0) @db.Decimal(14, 2)
+  amountPaid    Decimal       @default(0) @db.Decimal(14, 2)
+  issuedAt      DateTime?
+  dueDate       DateTime?
+  notes         String?
+  terms         String?
+  isArchived    Boolean       @default(false)
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  items         InvoiceItem[]
+  payments      Payment[]
+  recurringInvoiceId String?   @db.Uuid
+  recurringInvoice   RecurringInvoice? @relation(fields: [recurringInvoiceId], references: [id], onDelete: SetNull)
+
+  @@unique([companyId, invoiceNumber])
+  @@index([companyId, status])
+  @@index([companyId, dueDate])
+  @@index([projectId])
+  @@index([customerId])
+  @@map("invoices")
+}
+
+model InvoiceItem {
+  id          String   @id @default(uuid()) @db.Uuid
+  invoiceId   String   @db.Uuid
+  invoice     Invoice  @relation(fields: [invoiceId], references: [id], onDelete: Cascade)
+  description String
+  quantity    Decimal  @db.Decimal(12, 3)
+  unitPrice   Decimal  @db.Decimal(14, 2)
+  discount    Decimal  @default(0) @db.Decimal(14, 2)
+  taxRate     Decimal  @default(0) @db.Decimal(7, 4)
+  lineTotal   Decimal  @db.Decimal(14, 2)
+  order       Int      @default(0)
+
+  @@index([invoiceId])
+  @@map("invoice_items")
+}
+
+model Payment {
+  id             String        @id @default(uuid()) @db.Uuid
+  invoiceId      String        @db.Uuid
+  invoice        Invoice       @relation(fields: [invoiceId], references: [id], onDelete: Restrict)
+  amount         Decimal       @db.Decimal(14, 2)
+  currency       String
+  method         PaymentMethod @default(OTHER)
+  reference      String?
+  paidAt         DateTime
+  notes          String?
+  status         String        @default("COMPLETED")
+  isReversed     Boolean       @default(false)
+  reversedAt     DateTime?
+  reversalReason String?
+  recordedBy     String        @db.Uuid
+  recorder       User          @relation(fields: [recordedBy], references: [id], onDelete: Restrict)
+  idempotencyKey String?       @unique
+  createdAt      DateTime      @default(now())
+
+  @@index([invoiceId, paidAt])
+  @@map("payments")
+}
+
+model ExpenseCategory {
+  id          String    @id @default(uuid()) @db.Uuid
+  companyId   String    @db.Uuid
+  company     Company   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name        String
+  description String?
+  isDefault   Boolean   @default(false)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  expenses    Expense[]
+
+  @@unique([companyId, name])
+  @@map("expense_categories")
+}
+
+model Expense {
+  id              String           @id @default(uuid()) @db.Uuid
+  companyId       String           @db.Uuid
+  company         Company          @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  title           String?
+  description     String
+  categoryId      String?          @db.Uuid
+  categoryRef     ExpenseCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  category        String
+  amount          Decimal          @db.Decimal(14, 2)
+  currency        String           @default("INR")
+  vendor          String?
+  customerId      String?          @db.Uuid
+  customer        Customer?        @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  projectId       String?          @db.Uuid
+  project         Project?         @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  paymentMethod   PaymentMethod?   @default(OTHER)
+  referenceNumber String?
+  notes           String?
+  receiptUrl      String?
+  approvalStatus  String           @default("APPROVED")
+  createdById     String?          @db.Uuid
+  createdBy       User?            @relation("ExpenseCreator", fields: [createdById], references: [id], onDelete: SetNull)
+  incurredAt      DateTime
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  @@index([companyId, incurredAt])
+  @@index([companyId, category])
+  @@index([customerId])
+  @@index([projectId])
+  @@map("expenses")
+}
+
+model TaxRate {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @db.Uuid
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name      String
+  rate      Decimal  @db.Decimal(7, 4)
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, name])
+  @@map("tax_rates")
+}
+
+model Currency {
+  id        String   @id @default(uuid()) @db.Uuid
+  companyId String   @db.Uuid
+  company   Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  code      String
+  symbol    String
+  isDefault Boolean  @default(false)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([companyId, code])
+  @@map("currencies")
+}
+
+model Ticket {
+  id             String         @id @default(uuid()) @db.Uuid
+  companyId      String         @db.Uuid
+  company        Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  customerId     String?        @db.Uuid
+  customer       Customer?      @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  contactId      String?        @db.Uuid
+  contact        Contact?       @relation(fields: [contactId], references: [id], onDelete: SetNull)
+  categoryId     String?        @db.Uuid
+  category       TicketCategory? @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  ticketNumber   String
+  subject        String
+  description    String
+  status         TicketStatus   @default(OPEN)
+  priority       TicketPriority @default(MEDIUM)
+  department     String?
+  assignedTo     String?        @db.Uuid
+  assignee       User?          @relation("AssignedTickets", fields: [assignedTo], references: [id], onDelete: SetNull)
+  dueDate        DateTime?
+  slaDueAt       DateTime?
+  resolvedAt     DateTime?
+  closedAt       DateTime?
+  isArchived     Boolean        @default(false)
+  attachmentUrls String[]
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  replies        TicketReply[]
+
+  @@unique([companyId, ticketNumber])
+  @@index([companyId, status, priority])
+  @@index([companyId, isArchived])
+  @@index([customerId])
+  @@index([assignedTo])
+  @@map("tickets")
+}
+
+model TicketReply {
+  id             String   @id @default(uuid()) @db.Uuid
+  ticketId       String   @db.Uuid
+  ticket         Ticket   @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  authorId       String   @db.Uuid
+  author         User     @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  body           String
+  isInternal     Boolean  @default(false)
+  attachmentUrls String[]
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @default(now()) @updatedAt
+
+  @@index([ticketId, createdAt])
+  @@map("ticket_replies")
+}
+
+model TicketCategory {
+  id          String   @id @default(uuid()) @db.Uuid
+  companyId   String   @db.Uuid
+  company     Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name        String
+  description String?
+  isDefault   Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tickets     Ticket[]
+
+  @@unique([companyId, name])
+  @@map("ticket_categories")
+}
+
+model KnowledgeBaseCategory {
+  id          String                 @id @default(uuid()) @db.Uuid
+  companyId   String                 @db.Uuid
+  company     Company                @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name        String
+  slug        String
+  description String?
+  order       Int                    @default(0)
+  createdAt   DateTime               @default(now())
+  updatedAt   DateTime               @updatedAt
+
+  articles    KnowledgeBaseArticle[]
+
+  @@unique([companyId, slug])
+  @@map("kb_categories")
+}
+
+model KnowledgeBaseArticle {
+  id          String                    @id @default(uuid()) @db.Uuid
+  companyId   String                    @db.Uuid
+  company     Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  categoryId  String?                   @db.Uuid
+  category    KnowledgeBaseCategory?    @relation(fields: [categoryId], references: [id], onDelete: SetNull)
+  authorId    String                    @db.Uuid
+  author      User                      @relation(fields: [authorId], references: [id], onDelete: Restrict)
+  title       String
+  slug        String
+  summary     String?
+  body        String
+  status      ArticleStatus             @default(DRAFT)
+  views       Int                       @default(0)
+  publishedAt DateTime?
+  isArchived  Boolean                   @default(false)
+  createdAt   DateTime                  @default(now())
+  updatedAt   DateTime                  @updatedAt
+
+  tags        KnowledgeBaseArticleTag[]
+
+  @@unique([companyId, slug])
+  @@index([companyId, status])
+  @@index([categoryId])
+  @@map("kb_articles")
+}
+
+model KnowledgeBaseTag {
+  id        String                    @id @default(uuid()) @db.Uuid
+  companyId String                    @db.Uuid
+  company   Company                   @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  name      String
+  slug      String
+  createdAt DateTime                  @default(now())
+
+  articles  KnowledgeBaseArticleTag[]
+
+  @@unique([companyId, slug])
+  @@map("kb_tags")
+}
+
+model KnowledgeBaseArticleTag {
+  articleId String               @db.Uuid
+  article   KnowledgeBaseArticle @relation(fields: [articleId], references: [id], onDelete: Cascade)
+  tagId     String               @db.Uuid
+  tag       KnowledgeBaseTag     @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([articleId, tagId])
+  @@map("kb_article_tags")
+}
+
+model Notification {
+  id        String    @id @default(uuid()) @db.Uuid
+  companyId String?   @db.Uuid
+  userId    String    @db.Uuid
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type      String
+  title     String
+  body      String?
+  link      String?
+  metadata  Json?
+  readAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId, readAt, createdAt])
+  @@map("notifications")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid()) @db.Uuid
+  companyId  String   @db.Uuid
+  company    Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  actorId    String?  @db.Uuid
+  actor      User?    @relation(fields: [actorId], references: [id], onDelete: SetNull)
+  action     String
+  entityType String
+  entityId   String?
+  metadata   Json?
+  createdAt  DateTime @default(now())
+
+  @@index([companyId, createdAt])
+  @@index([entityType, entityId])
+  @@map("audit_logs")
+}
+
+model Attachment {
+  id           String   @id @default(uuid()) @db.Uuid
+  companyId    String   @db.Uuid
+  company      Company  @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  entityType   String
+  entityId     String   @db.Uuid
+  fileName     String
+  mimeType     String
+  sizeBytes    Int
+  storageKey   String   @unique
+  uploadedById String?  @db.Uuid
+  uploadedBy   User?    @relation(fields: [uploadedById], references: [id], onDelete: SetNull)
+  createdAt    DateTime @default(now())
+
+  @@index([companyId, entityType, entityId])
+  @@map("attachments")
+}
+
+model RecurringInvoice {
+  id             String             @id @default(uuid()) @db.Uuid
+  companyId      String             @db.Uuid
+  company        Company            @relation(fields: [companyId], references: [id], onDelete: Restrict)
+  customerId     String             @db.Uuid
+  customer       Customer           @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  projectId      String?            @db.Uuid
+  title          String
+  currency       String             @default("INR")
+  discount       Decimal            @default(0) @db.Decimal(14, 2)
+  frequency      RecurringFrequency
+  intervalCount  Int                @default(1)
+  startDate      DateTime
+  nextRunDate    DateTime
+  endDate        DateTime?
+  dueInDays      Int                @default(14)
+  autoIssue      Boolean            @default(false)
+  isActive       Boolean            @default(true)
+  items          Json
+  notes          String?
+  terms          String?
+  lastRunAt      DateTime?
+  generatedCount Int                @default(0)
+  createdById    String?            @db.Uuid
+  createdAt      DateTime           @default(now())
+  updatedAt      DateTime           @updatedAt
+
+  invoices       Invoice[]
+
+  @@index([companyId, isActive, nextRunDate])
+  @@map("recurring_invoices")
+}
