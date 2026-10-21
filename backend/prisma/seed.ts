@@ -77,6 +77,53 @@ const PERMISSIONS = [
 ];
 
 async function main() {
+  // The two administrator accounts are a Super Admin and an Admin; both hold the Administrator role, which
+  // carries every permission. They are checked first so a mistake stops the run before anything is written.
+  // Real deployments must supply the credentials; the development fallbacks below only let a local
+  // database be seeded without any setup.
+  const isProduction = process.env.NODE_ENV === 'production';
+  const required = (name: string, fallback: string) => {
+    const value = process.env[name];
+    if (value) return value;
+    if (isProduction) {
+      throw new Error(`${name} must be set to seed a production database.`);
+    }
+    return fallback;
+  };
+
+  const accounts = [
+    {
+      label: 'Super Admin',
+      email: required('INITIAL_SUPER_ADMIN_EMAIL', 'superadmin@businesscrm.local').toLowerCase(),
+      password: required('INITIAL_SUPER_ADMIN_PASSWORD', 'Admin@Secure123!'),
+    },
+    {
+      label: 'Admin',
+      email: required('INITIAL_ADMIN_EMAIL', 'admin@businesscrm.local').toLowerCase(),
+      password: required('INITIAL_ADMIN_PASSWORD', 'Admin@Secure123!'),
+    },
+  ];
+
+  // The first sign-in on a live system is an administrator, so refuse passwords that are easy to guess.
+  // These are the same rules as creating a user in the app.
+  const isStrong = (password: string) =>
+    password.length >= 8 && /[A-Z]/.test(password) && /[a-z]/.test(password) && /[0-9]/.test(password);
+  const looksLikeEmail = (value: string) => /^[^\s@<>]+@[^\s@<>]+\.[^\s@<>]+$/.test(value);
+  for (const account of accounts) {
+    if (isProduction && !looksLikeEmail(account.email)) {
+      throw new Error(`${account.label}: "${account.email}" is not a valid email address.`);
+    }
+    if (isProduction && !isStrong(account.password)) {
+      throw new Error(
+        `${account.label}: the password needs at least 8 characters with an upper case letter, a lower case letter and a number.`
+      );
+    }
+  }
+
+  if (accounts[0].email === accounts[1].email) {
+    throw new Error('The Super Admin and Admin accounts need different email addresses.');
+  }
+
   console.log('Seeding Business CRM database...');
 
   // 1. Seed or find default company
@@ -219,36 +266,7 @@ async function main() {
   }
   console.log(`Seeded ${rolesData.length} core roles with permission mappings.`);
 
-  // 4. Seed the two administrator accounts: a Super Admin and an Admin. Both hold the Administrator
-  //    role, which carries every permission. Real deployments must supply the credentials; the
-  //    development fallbacks below exist only so a local database can be seeded without any setup.
-  const isProduction = process.env.NODE_ENV === 'production';
-  const required = (name: string, fallback: string) => {
-    const value = process.env[name];
-    if (value) return value;
-    if (isProduction) {
-      throw new Error(`${name} must be set to seed a production database.`);
-    }
-    return fallback;
-  };
-
-  const accounts = [
-    {
-      label: 'Super Admin',
-      email: required('INITIAL_SUPER_ADMIN_EMAIL', 'superadmin@businesscrm.local').toLowerCase(),
-      password: required('INITIAL_SUPER_ADMIN_PASSWORD', 'Admin@Secure123!'),
-    },
-    {
-      label: 'Admin',
-      email: required('INITIAL_ADMIN_EMAIL', 'admin@businesscrm.local').toLowerCase(),
-      password: required('INITIAL_ADMIN_PASSWORD', 'Admin@Secure123!'),
-    },
-  ];
-
-  if (accounts[0].email === accounts[1].email) {
-    throw new Error('The Super Admin and Admin accounts need different email addresses.');
-  }
-
+  // 4. Create the two administrator accounts (credentials were checked at the start of this run).
   const adminRole = roleMap.get('Administrator')!;
   for (const account of accounts) {
     const passwordHash = await bcrypt.hash(account.password, 12);
