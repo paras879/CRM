@@ -24,6 +24,8 @@ import {
   AlertCircle,
   UserCheck,
   CheckCircle2,
+  Mail,
+  Phone,
 } from 'lucide-react';
 
 export default function LeadsPage() {
@@ -346,7 +348,8 @@ export default function LeadsPage() {
         <Table>
           <TableHeader className="bg-secondary/40">
             <TableRow className="border-border/60">
-              <TableHead className="text-xs font-semibold text-foreground/80">Lead / Contact</TableHead>
+              <TableHead className="text-xs font-semibold text-foreground/80">Lead</TableHead>
+              <TableHead className="text-xs font-semibold text-foreground/80">Contact</TableHead>
               <TableHead className="text-xs font-semibold text-foreground/80">Company</TableHead>
               <TableHead className="text-xs font-semibold text-foreground/80">Deal Value</TableHead>
               <TableHead className="text-xs font-semibold text-foreground/80">Stage</TableHead>
@@ -359,13 +362,13 @@ export default function LeadsPage() {
           <TableBody>
             {loading ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-12 text-center text-xs text-muted-foreground">
+                <TableCell colSpan={9} className="py-12 text-center text-xs text-muted-foreground">
                   Loading leads pipeline...
                 </TableCell>
               </TableRow>
             ) : leads.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={8} className="py-12 text-center text-xs text-muted-foreground">
+                <TableCell colSpan={9} className="py-12 text-center text-xs text-muted-foreground">
                   No leads found matching current filters.
                 </TableCell>
               </TableRow>
@@ -379,19 +382,37 @@ export default function LeadsPage() {
 
                 return (
                   <TableRow key={lead.id} className="hover:bg-secondary/40 transition-colors border-border/50">
-                    <TableCell>
-                      <div className="min-w-0">
-                        <Link
-                          href={`/crm/leads/${lead.id}`}
-                          className="text-xs font-medium text-foreground hover:text-primary block truncate"
-                        >
-                          {lead.name}
-                        </Link>
-                        {lead.title && <div className="text-[11px] text-muted-foreground truncate">{lead.title}</div>}
-                        <div className="flex items-center gap-2 text-[11px] text-muted-foreground/70">
-                          {lead.email && <span>{lead.email}</span>}
-                          {lead.phone && <span>• {lead.phone}</span>}
-                        </div>
+                    <TableCell className="align-top min-w-[11rem]">
+                      <Link
+                        href={`/crm/leads/${lead.id}`}
+                        className="text-sm font-semibold text-foreground hover:text-primary block"
+                      >
+                        {lead.name}
+                      </Link>
+                      {lead.title && <div className="text-xs text-muted-foreground mt-0.5">{lead.title}</div>}
+                    </TableCell>
+                    <TableCell className="align-top min-w-[16rem]">
+                      <div className="space-y-1 text-xs">
+                        {lead.email ? (
+                          <a
+                            href={`mailto:${lead.email}`}
+                            className="flex items-center gap-1.5 text-foreground/80 hover:text-primary"
+                            title={lead.email}
+                          >
+                            <Mail className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span className="truncate max-w-[14rem]">{lead.email}</span>
+                          </a>
+                        ) : null}
+                        {lead.phone ? (
+                          <a
+                            href={`tel:${lead.phone}`}
+                            className="flex items-center gap-1.5 text-foreground/80 hover:text-primary whitespace-nowrap"
+                          >
+                            <Phone className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                            <span>{lead.phone}</span>
+                          </a>
+                        ) : null}
+                        {!lead.email && !lead.phone && <span className="text-muted-foreground/70 italic">No contact info</span>}
                       </div>
                     </TableCell>
                     <TableCell className="text-xs text-foreground/80">

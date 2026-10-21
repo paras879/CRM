@@ -30,6 +30,10 @@ export const CreateCurrencySchema = z.object({
   isDefault: z.boolean().optional().default(false),
 });
 
+export const UpdateCurrencySchema = z.object({
+  symbol: z.string().trim().min(1, 'Symbol is required').max(8),
+});
+
 export const IdParamSchema = z.object({
   id: z.string().uuid(),
 });
@@ -38,3 +42,4 @@ export type UpdateCompanyInput = z.infer<typeof UpdateCompanySchema>;
 export type CreateTaxRateInput = z.infer<typeof CreateTaxRateSchema>;
 export type UpdateTaxRateInput = z.infer<typeof UpdateTaxRateSchema>;
 export type CreateCurrencyInput = z.infer<typeof CreateCurrencySchema>;
+export type UpdateCurrencyInput = z.infer<typeof UpdateCurrencySchema>;

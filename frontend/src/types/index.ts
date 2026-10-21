@@ -208,13 +208,15 @@ export interface Lead {
   updatedAt: string;
 }
 
-export type ActivityType = 'CALL' | 'MEETING' | 'TASK' | 'EMAIL' | 'FOLLOW_UP';
+export type ActivityType = 'CALL' | 'MEETING' | 'TASK' | 'EMAIL' | 'FOLLOW_UP' | 'OTHER';
 export type ActivityStatus = 'PENDING' | 'COMPLETED' | 'CANCELLED';
 
 export interface Activity {
   id: string;
   companyId: string;
   type: ActivityType;
+  /** What was typed in for the "Other" type. */
+  customType?: string | null;
   subject: string;
   description?: string | null;
   dueDate?: string | null;
@@ -259,6 +261,8 @@ export interface Note {
 
 export interface CrmDashboardMetrics {
   periodDays: number;
+  /** Set when a custom date range was requested. */
+  period?: { from: string; to: string } | null;
   totalActiveLeads: number;
   newLeadsInPeriod: number;
   totalCustomers: number;

@@ -128,12 +128,24 @@ export async function notifyLeadAssigned(companyId: string, actorId: string, lea
 export async function notifyActivityAssigned(
   companyId: string,
   actorId: string,
-  activity: { id: string; subject: string; type: string; dueDate?: Date | string | null; assignedToId?: string | null }
+  activity: {
+    id: string;
+    subject: string;
+    type: string;
+    customType?: string | null;
+    dueDate?: Date | string | null;
+    assignedToId?: string | null;
+  }
 ) {
   if (!activity.assignedToId) return;
   try {
     const due = activity.dueDate ? ` Due ${new Date(activity.dueDate).toLocaleDateString('en-IN')}.` : '';
-    const kind = activity.type === 'FOLLOW_UP' ? 'follow-up' : String(activity.type).toLowerCase().replace('_', ' ');
+    const kind =
+      activity.type === 'FOLLOW_UP'
+        ? 'follow-up'
+        : activity.type === 'OTHER' && activity.customType
+        ? activity.customType.toLowerCase()
+        : String(activity.type).toLowerCase().replace('_', ' ');
     await sendTo([activity.assignedToId], actorId, () => ({
       companyId,
       type: 'activity.assigned',
@@ -151,11 +163,12 @@ export async function notifyActivityAssigned(
 // Administration
 // ---------------------------------------------------------------------
 
-export type AdminUserEvent = 'created' | 'deactivated' | 'roles_changed' | 'password_reset';
+export type AdminUserEvent = 'created' | 'deactivated' | 'deleted' | 'roles_changed' | 'password_reset';
 
 const ADMIN_EVENT_COPY: Record<AdminUserEvent, (who: string, by: string) => { title: string; body: string }> = {
   created: (who, by) => ({ title: `New user added: ${who}`, body: `${by} created an account for ${who}.` }),
   deactivated: (who, by) => ({ title: `User deactivated: ${who}`, body: `${by} deactivated ${who}'s account. They can no longer sign in.` }),
+  deleted: (who, by) => ({ title: `User deleted: ${who}`, body: `${by} permanently deleted ${who}'s account.` }),
   roles_changed: (who, by) => ({ title: `Roles changed: ${who}`, body: `${by} changed the roles assigned to ${who}.` }),
   password_reset: (who, by) => ({ title: `Password reset issued: ${who}`, body: `${by} created a password reset link for ${who}.` }),
 };

@@ -138,6 +138,11 @@ export async function listActivities(companyId: string, query: ListActivitiesQue
   };
 }
 
+/** The typed-in label only means something for the "Other" type; any other type clears it. */
+function customTypeFor(type: string | undefined, customType: string | null | undefined): string | null {
+  return type === 'OTHER' && customType ? customType : null;
+}
+
 export async function getActivityById(companyId: string, activityId: string) {
   if (!isDatabaseConnected) {
     const activity = devStore.activities.find((a) => a.companyId === companyId && a.id === activityId);
@@ -180,6 +185,7 @@ export async function createActivity(companyId: string, actorId: string, input: 
       id: activityId,
       companyId,
       type: input.type,
+      customType: customTypeFor(input.type, input.customType),
       subject: input.subject,
       description: input.description || null,
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
@@ -210,6 +216,7 @@ export async function createActivity(companyId: string, actorId: string, input: 
     data: {
       companyId,
       type: input.type,
+      customType: customTypeFor(input.type, input.customType),
       subject: input.subject,
       description: input.description || null,
       dueDate: input.dueDate ? new Date(input.dueDate) : null,
@@ -239,7 +246,12 @@ export async function updateActivity(companyId: string, actorId: string, activit
       throw new AppError(404, 'ACTIVITY_NOT_FOUND', 'Activity record not found');
     }
 
-    if (input.type !== undefined) activity.type = input.type;
+    if (input.type !== undefined) {
+      activity.type = input.type;
+      activity.customType = customTypeFor(input.type, input.customType);
+    } else if (input.customType !== undefined && activity.type === 'OTHER') {
+      activity.customType = input.customType || null;
+    }
     if (input.subject !== undefined) activity.subject = input.subject;
     if (input.description !== undefined) activity.description = input.description || null;
     if (input.dueDate !== undefined) activity.dueDate = input.dueDate ? new Date(input.dueDate) : null;
@@ -262,7 +274,11 @@ export async function updateActivity(companyId: string, actorId: string, activit
   await prisma.activity.update({
     where: { id: activityId },
     data: {
-      ...(input.type !== undefined ? { type: input.type } : {}),
+      ...(input.type !== undefined
+        ? { type: input.type, customType: customTypeFor(input.type, input.customType) }
+        : input.customType !== undefined && existing.type === 'OTHER'
+        ? { customType: input.customType || null }
+        : {}),
       ...(input.subject !== undefined ? { subject: input.subject } : {}),
       ...(input.description !== undefined ? { description: input.description } : {}),
       ...(input.dueDate !== undefined ? { dueDate: input.dueDate ? new Date(input.dueDate) : null } : {}),

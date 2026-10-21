@@ -13,6 +13,64 @@ import { Skeleton } from '@/components/ui/skeleton';
 import { formatDate } from '@/lib/utils';
 import { History, RefreshCw, ChevronLeft, ChevronRight } from 'lucide-react';
 
+/** "USER_UPDATED" -> "User updated" */
+function readableAction(action: string): string {
+  const text = action.replace(/[_.]/g, ' ').toLowerCase().trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+/** "companyName" -> "Company name" */
+function readableKey(key: string): string {
+  const text = key.replace(/([a-z0-9])([A-Z])/g, '$1 $2').replace(/[_.]/g, ' ').toLowerCase().trim();
+  return text.charAt(0).toUpperCase() + text.slice(1);
+}
+
+function formatValue(value: unknown): string {
+  if (value === null || value === undefined || value === '') return '-';
+  if (typeof value === 'boolean') return value ? 'Yes' : 'No';
+  if (Array.isArray(value)) return value.map(formatValue).join(', ');
+  if (typeof value === 'object') return JSON.stringify(value);
+  return String(value);
+}
+
+const DETAILS_PREVIEW = 3;
+
+/** Turns an audit record's raw metadata into labelled rows that are easy to scan. */
+function AuditDetails({ metadata }: { metadata: AuditLog['metadata'] }) {
+  const [expanded, setExpanded] = useState(false);
+  const entries = Object.entries(metadata ?? {});
+  if (entries.length === 0) return <span className="text-xs text-muted-foreground">-</span>;
+
+  const visible = expanded ? entries : entries.slice(0, DETAILS_PREVIEW);
+  const hidden = entries.length - visible.length;
+
+  return (
+    <dl className="space-y-1 text-xs min-w-[14rem] max-w-md">
+      {visible.map(([key, value]) => {
+        const label = key === 'updatedFields' ? 'Changed' : readableKey(key);
+        const text = key === 'updatedFields' && Array.isArray(value) ? value.map((v) => readableKey(String(v))).join(', ') : formatValue(value);
+        return (
+          <div key={key} className="flex gap-2">
+            <dt className="shrink-0 text-muted-foreground">{label}:</dt>
+            <dd className={`text-foreground ${expanded ? 'break-words' : 'truncate'}`} title={text}>
+              {text}
+            </dd>
+          </div>
+        );
+      })}
+      {(hidden > 0 || (expanded && entries.length > DETAILS_PREVIEW)) && (
+        <button
+          type="button"
+          onClick={() => setExpanded((v) => !v)}
+          className="text-[11px] font-medium text-primary hover:underline"
+        >
+          {expanded ? 'Show less' : `Show ${hidden} more`}
+        </button>
+      )}
+    </dl>
+  );
+}
+
 export default function AuditLogsPage() {
   const [logs, setLogs] = useState<AuditLog[]>([]);
   const [page, setPage] = useState(1);
@@ -116,9 +174,10 @@ export default function AuditLogsPage() {
                             ? 'success'
                             : 'secondary'
                         }
-                        className="font-mono text-[10px]"
+                        className="text-[11px] whitespace-nowrap"
+                        title={log.action}
                       >
-                        {log.action}
+                        {readableAction(log.action)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -134,13 +193,13 @@ export default function AuditLogsPage() {
                     <TableCell className="text-xs">
                       <span className="font-medium text-foreground">{log.entityType}</span>
                       {log.entityId && (
-                        <span className="text-[10px] text-muted-foreground block font-mono truncate max-w-[120px]">
-                          {log.entityId}
+                        <span className="text-[10px] text-muted-foreground block font-mono" title={log.entityId}>
+                          #{log.entityId.slice(0, 8)}
                         </span>
                       )}
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground max-w-xs truncate font-mono text-[11px]">
-                      {log.metadata ? JSON.stringify(log.metadata) : '-'}
+                    <TableCell className="align-top">
+                      <AuditDetails metadata={log.metadata} />
                     </TableCell>
                   </TableRow>
                 ))

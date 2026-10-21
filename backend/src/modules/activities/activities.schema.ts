@@ -1,8 +1,9 @@
 import { z } from 'zod';
 import { ActivityType, ActivityStatus } from '@prisma/client';
 
-export const CreateActivitySchema = z.object({
+const ActivityFields = z.object({
   type: z.nativeEnum(ActivityType).default(ActivityType.FOLLOW_UP),
+  customType: z.string().trim().max(60, 'Keep the type under 60 characters').optional().nullable(),
   subject: z.string().trim().min(2, 'Subject must be at least 2 characters').max(200),
   description: z.string().trim().max(2000).optional().nullable(),
   dueDate: z
@@ -16,9 +17,17 @@ export const CreateActivitySchema = z.object({
   leadId: z.string().uuid().optional().nullable(),
 });
 
-export const UpdateActivitySchema = CreateActivitySchema.partial().extend({
-  status: z.nativeEnum(ActivityStatus).optional(),
-});
+const otherNeedsALabel = (value: { type?: ActivityType; customType?: string | null }, ctx: z.RefinementCtx) => {
+  if (value.type === ActivityType.OTHER && !value.customType) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['customType'], message: 'Say what kind of activity this is' });
+  }
+};
+
+export const CreateActivitySchema = ActivityFields.superRefine(otherNeedsALabel);
+
+export const UpdateActivitySchema = ActivityFields.partial()
+  .extend({ status: z.nativeEnum(ActivityStatus).optional() })
+  .superRefine(otherNeedsALabel);
 
 export const CompleteActivitySchema = z.object({
   completedAt: z.string().datetime().optional().nullable(),

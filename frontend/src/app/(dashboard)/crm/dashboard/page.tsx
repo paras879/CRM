@@ -33,11 +33,19 @@ export default function CrmDashboardPage() {
   const [metrics, setMetrics] = useState<CrmDashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [periodDays, setPeriodDays] = useState(30);
+  // A custom range replaces the preset buttons while it is applied.
+  const [customRange, setCustomRange] = useState<{ from: string; to: string } | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+  const [draftFrom, setDraftFrom] = useState('');
+  const [draftTo, setDraftTo] = useState('');
+  const today = new Date().toISOString().split('T')[0];
+  const draftValid = draftFrom !== '' && draftTo !== '' && draftFrom <= draftTo;
 
-  const fetchMetrics = async (days: number) => {
+  const fetchMetrics = async (days: number, range: { from: string; to: string } | null) => {
     try {
       setLoading(true);
-      const res = await apiFetch<{ metrics: CrmDashboardMetrics }>(`/crm-dashboard/metrics?days=${days}`);
+      const query = range ? `startDate=${range.from}&endDate=${range.to}` : `days=${days}`;
+      const res = await apiFetch<{ metrics: CrmDashboardMetrics }>(`/crm-dashboard/metrics?${query}`);
       setMetrics(res.metrics);
     } catch (err) {
       console.error('Failed to load CRM dashboard metrics:', err);
@@ -47,8 +55,11 @@ export default function CrmDashboardPage() {
   };
 
   useEffect(() => {
-    fetchMetrics(periodDays);
-  }, [periodDays]);
+    fetchMetrics(periodDays, customRange);
+  }, [periodDays, customRange]);
+
+  const formatRangeDate = (iso: string) =>
+    new Date(`${iso}T00:00:00`).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
 
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('en-IN', {
@@ -73,25 +84,93 @@ export default function CrmDashboardPage() {
 
         <div className="flex items-center gap-3">
           {/* Period Selector */}
-          <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-secondary/60 p-1 text-xs">
-            {[
-              { label: '7 Days', val: 7 },
-              { label: '30 Days', val: 30 },
-              { label: '90 Days', val: 90 },
-              { label: 'All Time', val: 0 },
-            ].map((p) => (
+          <div className="relative">
+            <div className="flex items-center gap-1 rounded-lg border border-border/80 bg-secondary/60 p-1 text-xs">
+              {[
+                { label: '7 Days', val: 7 },
+                { label: '30 Days', val: 30 },
+                { label: '90 Days', val: 90 },
+                { label: 'All Time', val: 0 },
+              ].map((p) => (
+                <button
+                  key={p.val}
+                  onClick={() => {
+                    setCustomRange(null);
+                    setPickerOpen(false);
+                    setPeriodDays(p.val);
+                  }}
+                  className={`rounded-md px-3 py-1 font-medium transition-all ${
+                    !customRange && periodDays === p.val
+                      ? 'bg-primary text-primary-foreground shadow-xs'
+                      : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
+                  }`}
+                >
+                  {p.label}
+                </button>
+              ))}
               <button
-                key={p.val}
-                onClick={() => setPeriodDays(p.val)}
+                onClick={() => {
+                  setDraftFrom(customRange?.from ?? '');
+                  setDraftTo(customRange?.to ?? '');
+                  setPickerOpen((open) => !open);
+                }}
+                aria-expanded={pickerOpen}
                 className={`rounded-md px-3 py-1 font-medium transition-all ${
-                  periodDays === p.val
+                  customRange
                     ? 'bg-primary text-primary-foreground shadow-xs'
                     : 'text-muted-foreground hover:bg-secondary hover:text-foreground'
                 }`}
               >
-                {p.label}
+                {customRange ? `${formatRangeDate(customRange.from)} - ${formatRangeDate(customRange.to)}` : 'Custom'}
               </button>
-            ))}
+            </div>
+
+            {pickerOpen && (
+              <div className="absolute right-0 z-30 mt-2 w-72 rounded-xl border border-border bg-card p-4 shadow-xl space-y-3 animate-in fade-in-0 zoom-in-95">
+                <div className="grid grid-cols-2 gap-3">
+                  <label className="text-xs font-medium text-foreground">
+                    From
+                    <input
+                      type="date"
+                      value={draftFrom}
+                      max={draftTo || today}
+                      onChange={(e) => setDraftFrom(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                    />
+                  </label>
+                  <label className="text-xs font-medium text-foreground">
+                    To
+                    <input
+                      type="date"
+                      value={draftTo}
+                      min={draftFrom || undefined}
+                      max={today}
+                      onChange={(e) => setDraftTo(e.target.value)}
+                      className="mt-1 w-full rounded-md border border-input bg-background px-2 py-1.5 text-xs"
+                    />
+                  </label>
+                </div>
+                {draftFrom && draftTo && draftFrom > draftTo && (
+                  <p className="text-[11px] text-destructive">The start date must be on or before the end date.</p>
+                )}
+                <div className="flex justify-end gap-2">
+                  <Button type="button" variant="outline" size="sm" onClick={() => setPickerOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    size="sm"
+                    disabled={!draftValid}
+                    onClick={() => {
+                      setCustomRange({ from: draftFrom, to: draftTo });
+                      setPickerOpen(false);
+                    }}
+                  >
+                    Apply
+                  </Button>
+                </div>
+              </div>
+            )}
           </div>
 
           <Link href="/crm/leads">

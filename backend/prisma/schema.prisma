@@ -453,6 +453,8 @@ model Activity {
   companyId    String         @db.Uuid
   company      Company        @relation(fields: [companyId], references: [id], onDelete: Restrict)
   type         ActivityType   @default(FOLLOW_UP)
+  /// What the person typed when they chose the "Other" type; null for every other type.
+  customType   String?
   subject      String
   description  String?
   dueDate      DateTime?

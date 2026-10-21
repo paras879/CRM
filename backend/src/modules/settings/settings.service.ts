@@ -8,6 +8,7 @@ import {
   CreateTaxRateInput,
   UpdateTaxRateInput,
   CreateCurrencyInput,
+  UpdateCurrencyInput,
 } from './settings.schema.js';
 
 type TaxRateView = { id: string; name: string; rate: number; isDefault: boolean; createdAt: Date; updatedAt: Date };
@@ -286,18 +287,47 @@ export async function deleteCurrency(companyId: string, actorId: string, id: str
   if (!isDatabaseConnected) {
     const row = devStore.currencies.find((c) => c.id === id && c.companyId === companyId);
     if (!row) throw AppError.notFound('Currency not found.', 'CURRENCY_NOT_FOUND');
-    if (row.isDefault) {
+    const othersDev = devStore.currencies.filter((c) => c.companyId === companyId && c.id !== id).length;
+    if (row.isDefault && othersDev > 0) {
       throw AppError.conflict('The default currency cannot be deleted. Make another currency the default first.', 'CURRENCY_IS_DEFAULT');
     }
     devStore.currencies = devStore.currencies.filter((c) => c.id !== id);
   } else {
     const row = await prisma.currency.findFirst({ where: { id, companyId } });
     if (!row) throw AppError.notFound('Currency not found.', 'CURRENCY_NOT_FOUND');
-    if (row.isDefault) {
+    const others = await prisma.currency.count({ where: { companyId, id: { not: id } } });
+    if (row.isDefault && others > 0) {
       throw AppError.conflict('The default currency cannot be deleted. Make another currency the default first.', 'CURRENCY_IS_DEFAULT');
     }
     await prisma.currency.delete({ where: { id } });
   }
 
   await recordAuditLog({ companyId, actorId, action: 'CURRENCY_DELETED', entityType: 'currency', entityId: id });
+}
+
+/** Only the symbol can change: the code is stored on existing invoices, estimates and payments. */
+export async function updateCurrency(companyId: string, actorId: string, id: string, input: UpdateCurrencyInput) {
+  let updated: CurrencyView;
+
+  if (!isDatabaseConnected) {
+    const row = devStore.currencies.find((c) => c.id === id && c.companyId === companyId);
+    if (!row) throw AppError.notFound('Currency not found.', 'CURRENCY_NOT_FOUND');
+    row.symbol = input.symbol;
+    row.updatedAt = new Date();
+    updated = currencyView(row);
+  } else {
+    const existing = await prisma.currency.findFirst({ where: { id, companyId } });
+    if (!existing) throw AppError.notFound('Currency not found.', 'CURRENCY_NOT_FOUND');
+    updated = currencyView(await prisma.currency.update({ where: { id }, data: { symbol: input.symbol } }));
+  }
+
+  await recordAuditLog({
+    companyId,
+    actorId,
+    action: 'CURRENCY_UPDATED',
+    entityType: 'currency',
+    entityId: id,
+    metadata: { code: updated.code, symbol: updated.symbol },
+  });
+  return updated;
 }

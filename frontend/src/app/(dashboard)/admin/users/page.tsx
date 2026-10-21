@@ -19,6 +19,7 @@ import {
   Edit2,
   UserX,
   UserCheck,
+  Trash2,
   Shield,
   RefreshCw,
   KeyRound,
@@ -26,7 +27,7 @@ import {
 } from 'lucide-react';
 
 export default function UsersAdminPage() {
-  const { hasPermission } = useAuth();
+  const { hasPermission, user: currentUser } = useAuth();
   const [resetLink, setResetLink] = useState<{ url: string; name: string; expiresAt: string } | null>(null);
   const [resetError, setResetError] = useState<string | null>(null);
   const [linkCopied, setLinkCopied] = useState(false);
@@ -213,12 +214,20 @@ export default function UsersAdminPage() {
     }
   };
 
-  const toggleRoleSelection = (roleId: string) => {
-    if (selectedRoleIds.includes(roleId)) {
-      if (selectedRoleIds.length === 1) return; // Keep at least one
-      setSelectedRoleIds(selectedRoleIds.filter((id) => id !== roleId));
-    } else {
-      setSelectedRoleIds([...selectedRoleIds, roleId]);
+  // Each person has exactly one role, so choosing a role replaces the previous choice.
+  const toggleRoleSelection = (roleId: string) => setSelectedRoleIds([roleId]);
+
+  const handleDelete = async (u: User) => {
+    const ok = confirm(
+      `Permanently delete ${u.name}?\n\nThis cannot be undone. If you only want to stop them signing in, deactivate the account instead.`
+    );
+    if (!ok) return;
+    try {
+      await apiFetch(`/users/${u.id}?permanent=true`, { method: 'DELETE' });
+      loadUsers();
+      loadManagerOptions();
+    } catch (err: any) {
+      alert(err.message || 'Failed to delete user');
     }
   };
 
@@ -422,6 +431,22 @@ export default function UsersAdminPage() {
                             )}
                           </Button>
                         )}
+                        {hasPermission('users.delete') && u.id === currentUser?.id && (
+                          // Keeps the icons in the same columns as the other rows: you cannot delete yourself.
+                          <span className="inline-block h-8 w-[2.1rem]" aria-hidden="true" />
+                        )}
+                        {hasPermission('users.delete') && u.id !== currentUser?.id && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDelete(u)}
+                            className="h-8 px-2 text-muted-foreground hover:text-destructive"
+                            title="Delete user permanently"
+                            aria-label={`Delete ${u.name}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </div>
                     </TableCell>
                   </TableRow>
@@ -484,14 +509,16 @@ export default function UsersAdminPage() {
           </div>
           {renderManagerSelect()}
           <div>
-            <label className="text-sm font-medium block mb-2">Assign Roles</label>
-            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
+            <label className="text-sm font-medium block mb-2" id="role-label-create">Role</label>
+            <div role="radiogroup" aria-label="Role" className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
               {roles.map((r) => {
                 const isSelected = selectedRoleIds.includes(r.id);
                 return (
                   <button
                     key={r.id}
                     type="button"
+                    role="radio"
+                    aria-checked={isSelected}
                     onClick={() => toggleRoleSelection(r.id)}
                     className={`flex items-center gap-2 p-2 rounded-md border text-left text-xs transition-colors ${
                       isSelected
@@ -592,14 +619,16 @@ export default function UsersAdminPage() {
           </div>
           {renderManagerSelect(selectedUser?.id)}
           <div>
-            <label className="text-sm font-medium block mb-2">Assigned Roles</label>
-            <div className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
+            <label className="text-sm font-medium block mb-2" id="role-label-edit">Role</label>
+            <div role="radiogroup" aria-label="Role" className="grid grid-cols-2 gap-2 max-h-40 overflow-y-auto p-1">
               {roles.map((r) => {
                 const isSelected = selectedRoleIds.includes(r.id);
                 return (
                   <button
                     key={r.id}
                     type="button"
+                    role="radio"
+                    aria-checked={isSelected}
                     onClick={() => toggleRoleSelection(r.id)}
                     className={`flex items-center gap-2 p-2 rounded-md border text-left text-xs transition-colors ${
                       isSelected

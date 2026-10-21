@@ -2,9 +2,22 @@ import { LeadStatus, ActivityStatus, CustomerType } from '@prisma/client';
 import { prisma, isDatabaseConnected } from '../../config/database.js';
 import { devStore } from '../../config/dev-store.js';
 
-export async function getCrmDashboardMetrics(companyId: string, daysFilter = 30) {
+export interface CrmDashboardRange {
+  start: Date;
+  /** Inclusive: the whole of this day is counted. */
+  end: Date;
+}
+
+/** `range` (a custom start and end date) takes priority over `daysFilter` (the last N days, 0 = all time). */
+export async function getCrmDashboardMetrics(companyId: string, daysFilter = 30, range?: CrmDashboardRange) {
   const now = new Date();
-  const periodStart = daysFilter > 0 ? new Date(now.getTime() - daysFilter * 24 * 60 * 60 * 1000) : new Date(0);
+  const periodStart = range
+    ? range.start
+    : daysFilter > 0
+    ? new Date(now.getTime() - daysFilter * 24 * 60 * 60 * 1000)
+    : new Date(0);
+  const periodEnd = range ? range.end : now;
+  const periodDaysValue = range ? 0 : daysFilter;
 
   if (!isDatabaseConnected) {
     const leads = devStore.leads.filter((l) => l.companyId === companyId);
@@ -19,7 +32,7 @@ export async function getCrmDashboardMetrics(companyId: string, daysFilter = 30)
 
     // New leads in period
     const newLeadsInPeriod = leads.filter(
-      (l) => !l.isArchived && l.createdAt >= periodStart
+      (l) => !l.isArchived && l.createdAt >= periodStart && l.createdAt <= periodEnd
     );
 
     // Customers
@@ -108,7 +121,8 @@ export async function getCrmDashboardMetrics(companyId: string, daysFilter = 30)
     }));
 
     return {
-      periodDays: daysFilter,
+      periodDays: periodDaysValue,
+      period: range ? { from: range.start.toISOString(), to: range.end.toISOString() } : null,
       totalActiveLeads: activeLeads.length,
       newLeadsInPeriod: newLeadsInPeriod.length,
       totalCustomers: activeCustomers.length,
@@ -155,7 +169,7 @@ export async function getCrmDashboardMetrics(companyId: string, daysFilter = 30)
       where: {
         companyId,
         isArchived: false,
-        createdAt: { gte: periodStart },
+        createdAt: { gte: periodStart, lte: periodEnd },
       },
     }),
     prisma.customer.count({ where: { companyId, isArchived: false } }),
@@ -219,7 +233,8 @@ export async function getCrmDashboardMetrics(companyId: string, daysFilter = 30)
   }));
 
   return {
-    periodDays: daysFilter,
+    periodDays: periodDaysValue,
+      period: range ? { from: range.start.toISOString(), to: range.end.toISOString() } : null,
     totalActiveLeads: activeLeadsCount,
     newLeadsInPeriod: newLeadsInPeriodCount,
     totalCustomers: totalCustomersCount,

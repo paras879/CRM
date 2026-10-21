@@ -482,3 +482,79 @@ export async function deleteOrDeactivateUser(
 
   return { message: 'User has been deactivated successfully' };
 }
+
+/**
+ * Permanently remove an account. Unlike deactivating, this cannot be undone. Accounts that own history that
+ * must stay attributable (payments they recorded, notes, ticket replies, articles) cannot be removed; those
+ * should be deactivated instead.
+ */
+export async function deleteUserPermanently(companyId: string, actorId: string, userId: string) {
+  if (userId === actorId) {
+    throw AppError.badRequest('You cannot delete your own account');
+  }
+
+  const lastAdminMessage = 'You cannot delete the last active administrator. Make someone else an administrator first.';
+  let removed: { name: string; email: string };
+
+  if (!isDatabaseConnected) {
+    const user = devStore.users.find((u) => u.id === userId && u.companyId === companyId);
+    if (!user) throw AppError.notFound('User not found');
+
+    const isAdminRole = (u: (typeof devStore.users)[number]) =>
+      devStore.roles.some((r) => u.roleIds.includes(r.id) && r.name === 'Administrator');
+    const otherActiveAdmins = devStore.users.filter(
+      (u) => u.companyId === companyId && u.id !== userId && u.status === UserStatus.ACTIVE && isAdminRole(u)
+    ).length;
+    if (isAdminRole(user) && otherActiveAdmins === 0) throw AppError.badRequest(lastAdminMessage);
+
+    removed = { name: user.name, email: user.email };
+    devStore.users = devStore.users.filter((u) => u.id !== userId);
+    // Same effect as the database's "set null" rules.
+    devStore.users.forEach((u) => {
+      if (u.managerId === userId) u.managerId = null;
+    });
+  } else {
+    const user = await prisma.user.findFirst({
+      where: { id: userId, companyId },
+      select: { name: true, email: true, userRoles: { select: { role: { select: { name: true } } } } },
+    });
+    if (!user) throw AppError.notFound('User not found');
+
+    if (user.userRoles.some((ur) => ur.role.name === 'Administrator')) {
+      const otherActiveAdmins = await prisma.user.count({
+        where: {
+          companyId,
+          id: { not: userId },
+          status: UserStatus.ACTIVE,
+          userRoles: { some: { role: { name: 'Administrator' } } },
+        },
+      });
+      if (otherActiveAdmins === 0) throw AppError.badRequest(lastAdminMessage);
+    }
+
+    removed = { name: user.name, email: user.email };
+    try {
+      await prisma.user.delete({ where: { id: userId } });
+    } catch (error) {
+      // P2003: another record still points at this user and must keep its author.
+      if ((error as { code?: string }).code === 'P2003') {
+        throw AppError.conflict(
+          'This user has recorded payments, notes, replies or articles, so they cannot be deleted. Deactivate the account instead.',
+          'USER_HAS_HISTORY'
+        );
+      }
+      throw error;
+    }
+  }
+
+  await recordAuditLog({
+    companyId,
+    actorId,
+    action: 'USER_DELETED',
+    entityType: 'User',
+    entityId: userId,
+    metadata: { name: removed.name, email: removed.email },
+  });
+
+  return { message: 'User has been deleted permanently', name: removed.name };
+}

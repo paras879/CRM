@@ -6,6 +6,7 @@ import {
   UpdateCompanySchema,
   CreateTaxRateSchema,
   UpdateTaxRateSchema,
+  UpdateCurrencySchema,
   CreateCurrencySchema,
   IdParamSchema,
 } from './settings.schema.js';
@@ -99,6 +100,15 @@ settingsRouter.post(
   handle(async (req) => ({
     status: 201,
     body: { data: await service.createCurrency(companyId(req), actorId(req), req.body) },
+  }))
+);
+
+settingsRouter.put(
+  '/currencies/:id',
+  requirePermission('company.update'),
+  validate({ params: IdParamSchema, body: UpdateCurrencySchema }),
+  handle(async (req) => ({
+    body: { data: await service.updateCurrency(companyId(req), actorId(req), req.params.id, req.body) },
   }))
 );
 

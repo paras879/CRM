@@ -206,6 +206,7 @@ export interface DevActivity {
   id: string;
   companyId: string;
   type: ActivityType;
+  customType?: string | null;
   subject: string;
   description: string | null;
   dueDate: Date | null;

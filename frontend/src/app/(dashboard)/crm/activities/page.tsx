@@ -21,6 +21,22 @@ import {
   ChevronRight,
 } from 'lucide-react';
 
+const ACTIVITY_TYPE_LABELS: Record<string, string> = {
+  FOLLOW_UP: 'Follow-up',
+  CALL: 'Call',
+  MEETING: 'Meeting',
+  EMAIL: 'Email',
+  TASK: 'Task',
+  NOTE: 'Note',
+  OTHER: 'Other',
+};
+
+/** "Other" shows what the person typed; every other type shows its plain name. */
+function activityTypeLabel(activity: { type: string; customType?: string | null }): string {
+  if (activity.type === 'OTHER' && activity.customType) return activity.customType;
+  return ACTIVITY_TYPE_LABELS[activity.type] ?? activity.type;
+}
+
 export default function ActivitiesPage() {
   const searchParams = useSearchParams();
   const initialTimeframe = searchParams.get('timeframe') || 'upcoming';
@@ -50,6 +66,7 @@ export default function ActivitiesPage() {
   const [openNewModal, setOpenNewModal] = useState(false);
   const [newSubject, setNewSubject] = useState('');
   const [newType, setNewType] = useState<ActivityType>('FOLLOW_UP');
+  const [newCustomType, setNewCustomType] = useState('');
   const [newDueDate, setNewDueDate] = useState('');
   const [newDescription, setNewDescription] = useState('');
   const [customersList, setCustomersList] = useState<Customer[]>([]);
@@ -166,6 +183,7 @@ export default function ActivitiesPage() {
   const handleCreateActivity = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newSubject.trim()) return;
+    if (newType === 'OTHER' && !newCustomType.trim()) return;
 
     try {
       setNewSubmitting(true);
@@ -173,6 +191,7 @@ export default function ActivitiesPage() {
         method: 'POST',
         body: JSON.stringify({
           type: newType,
+          customType: newType === 'OTHER' ? newCustomType.trim() : undefined,
           subject: newSubject.trim(),
           dueDate: newDueDate ? new Date(newDueDate).toISOString() : undefined,
           description: newDescription.trim() || undefined,
@@ -182,6 +201,8 @@ export default function ActivitiesPage() {
       });
 
       setOpenNewModal(false);
+      setNewType('FOLLOW_UP');
+      setNewCustomType('');
       setNewSubject('');
       setNewDueDate('');
       setNewDescription('');
@@ -267,6 +288,7 @@ export default function ActivitiesPage() {
               <option value="MEETING">Meeting</option>
               <option value="EMAIL">Email</option>
               <option value="TASK">Task</option>
+              <option value="OTHER">Other</option>
             </select>
           </div>
         </CardContent>
@@ -310,7 +332,7 @@ export default function ActivitiesPage() {
                         variant="secondary"
                         className="text-[10px] font-medium bg-secondary text-foreground/80 border-border/80"
                       >
-                        {act.type}
+                        {activityTypeLabel(act)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -454,7 +476,7 @@ export default function ActivitiesPage() {
           <div className="rounded-lg bg-secondary/50 p-3 text-xs text-foreground space-y-1 border border-border/80">
             <div className="font-semibold">{selectedActivity?.subject}</div>
             <div className="text-muted-foreground">
-              {selectedActivity?.type} • Due: {selectedActivity?.dueDate ? new Date(selectedActivity.dueDate).toLocaleDateString() : 'N/A'}
+              {selectedActivity ? activityTypeLabel(selectedActivity) : ''} • Due: {selectedActivity?.dueDate ? new Date(selectedActivity.dueDate).toLocaleDateString() : 'N/A'}
             </div>
           </div>
 
@@ -573,8 +595,23 @@ export default function ActivitiesPage() {
               <option value="CALL">Phone Discovery</option>
               <option value="EMAIL">Email Follow-up</option>
               <option value="TASK">Task / Internal Action</option>
+              <option value="OTHER">Other</option>
             </select>
           </div>
+
+          {newType === 'OTHER' && (
+            <div>
+              <label className="text-xs font-medium text-foreground/80 block mb-1">Specify the activity type *</label>
+              <Input
+                required
+                autoFocus
+                maxLength={60}
+                value={newCustomType}
+                onChange={(e) => setNewCustomType(e.target.value)}
+                placeholder="e.g. Site visit, Contract signing"
+              />
+            </div>
+          )}
 
           <div>
             <label className="text-xs font-medium text-foreground/80 block mb-1">Subject / Objective *</label>

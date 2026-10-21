@@ -98,6 +98,12 @@ export async function issuePasswordReset(req: Request, res: Response, next: Next
 export async function deleteUser(req: Request, res: Response, next: NextFunction) {
   try {
     const target = await usersService.getUserById(req.user!.companyId, req.params.userId);
+    if (req.query.permanent === 'true') {
+      const removed = await usersService.deleteUserPermanently(req.user!.companyId, req.user!.id, req.params.userId);
+      res.json(removed);
+      void notifyAdminsOfUserEvent(req.user!.companyId, req.user!.id, 'deleted', { id: target.id, name: target.name });
+      return;
+    }
     const result = await usersService.deleteOrDeactivateUser(
       req.user!.companyId,
       req.user!.id,

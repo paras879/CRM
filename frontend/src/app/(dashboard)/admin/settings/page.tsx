@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useState } from 'react';
-import { Check, Plus, Star, Trash2 } from 'lucide-react';
+import { Check, Pencil, Plus, Star, Trash2, X } from 'lucide-react';
 import { useAuth } from '@/components/auth/auth-provider';
 import { apiFetch, ApiError } from '@/lib/api';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,6 +62,8 @@ export default function SettingsPage() {
   const [currencies, setCurrencies] = useState<Currency[]>([]);
   const [currencyCode, setCurrencyCode] = useState('');
   const [currencySymbol, setCurrencySymbol] = useState('');
+  const [editingCurrencyId, setEditingCurrencyId] = useState<string | null>(null);
+  const [editingSymbol, setEditingSymbol] = useState('');
 
   const load = useCallback(async () => {
     try {
@@ -280,32 +282,89 @@ export default function SettingsPage() {
                 currencies.map((c) => (
                   <TableRow key={c.id}>
                     <TableCell className="text-sm font-medium">{c.code}</TableCell>
-                    <TableCell className="text-sm">{c.symbol}</TableCell>
+                    <TableCell className="text-sm">
+                      {editingCurrencyId === c.id ? (
+                        <Input
+                          aria-label={`Symbol for ${c.code}`}
+                          className="h-8 w-24"
+                          maxLength={8}
+                          autoFocus
+                          value={editingSymbol}
+                          onChange={(e) => setEditingSymbol(e.target.value)}
+                        />
+                      ) : (
+                        c.symbol
+                      )}
+                    </TableCell>
                     <TableCell>{c.isDefault && <Badge>Default</Badge>}</TableCell>
                     {canEdit && (
-                      <TableCell className="text-right space-x-1">
-                        {!c.isDefault && (
+                      <TableCell className="text-right space-x-1 whitespace-nowrap">
+                        {editingCurrencyId === c.id ? (
                           <>
                             <Button
                               variant="ghost"
                               size="sm"
-                              aria-label={`Make ${c.code} default`}
-                              onClick={() => run(() => apiFetch(`/settings/currencies/${c.id}/default`, { method: 'POST' }), 'Failed to set default currency.')}
+                              aria-label="Save symbol"
+                              disabled={!editingSymbol.trim()}
+                              onClick={async () => {
+                                await run(
+                                  () =>
+                                    apiFetch(`/settings/currencies/${c.id}`, {
+                                      method: 'PUT',
+                                      body: JSON.stringify({ symbol: editingSymbol.trim() }),
+                                    }),
+                                  'Failed to update currency.'
+                                );
+                                setEditingCurrencyId(null);
+                              }}
                             >
-                              <Star className="h-3.5 w-3.5" />
+                              <Check className="h-3.5 w-3.5" />
                             </Button>
+                            <Button variant="ghost" size="sm" aria-label="Cancel" onClick={() => setEditingCurrencyId(null)}>
+                              <X className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        ) : (
+                          <>
                             <Button
                               variant="ghost"
                               size="sm"
-                              aria-label={`Delete ${c.code}`}
+                              aria-label={`Edit ${c.code} symbol`}
+                              title="Edit symbol"
                               onClick={() => {
-                                if (confirm(`Delete currency ${c.code}?`)) {
-                                  run(() => apiFetch(`/settings/currencies/${c.id}`, { method: 'DELETE' }), 'Failed to delete currency.');
-                                }
+                                setEditingCurrencyId(c.id);
+                                setEditingSymbol(c.symbol);
                               }}
                             >
-                              <Trash2 className="h-3.5 w-3.5" />
+                              <Pencil className="h-3.5 w-3.5" />
                             </Button>
+                            {!c.isDefault && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`Make ${c.code} default`}
+                                title="Make default"
+                                onClick={() => run(() => apiFetch(`/settings/currencies/${c.id}/default`, { method: 'POST' }), 'Failed to set default currency.')}
+                              >
+                                <Star className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
+                            {/* The default currency can only be removed when it is the last one left. */}
+                            {(!c.isDefault || currencies.length === 1) && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                aria-label={`Delete ${c.code}`}
+                                title="Delete"
+                                onClick={() => {
+                                  if (confirm(`Delete currency ${c.code}?${c.isDefault ? ' You will need to add a new default afterwards.' : ''}`)) {
+                                    run(() => apiFetch(`/settings/currencies/${c.id}`, { method: 'DELETE' }), 'Failed to delete currency.');
+                                  }
+                                }}
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                           </>
                         )}
                       </TableCell>
